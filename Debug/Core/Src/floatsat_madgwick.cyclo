@@ -1,0 +1,9 @@
+../Core/Src/floatsat_madgwick.c:108:14:FS_Madgwick_Clamp	3
+../Core/Src/floatsat_madgwick.c:138:14:FS_Madgwick_Wrap360	3
+../Core/Src/floatsat_madgwick.c:170:16:FS_Madgwick_NormalizeQuaternion	2
+../Core/Src/floatsat_madgwick.c:229:13:FS_Madgwick_MatrixToQuaternion	5
+../Core/Src/floatsat_madgwick.c:310:13:FS_Madgwick_Integrate	1
+../Core/Src/floatsat_madgwick.c:351:6:FS_Madgwick_Reset	2
+../Core/Src/floatsat_madgwick.c:415:21:FS_Madgwick_InitializeFromBodyAxesENU	8
+../Core/Src/floatsat_madgwick.c:537:21:FS_Madgwick_Update	13
+../Core/Src/floatsat_madgwick.c:1124:21:FS_Madgwick_GetOutput	5

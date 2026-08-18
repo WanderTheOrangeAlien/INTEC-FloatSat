@@ -1,0 +1,15 @@
+../Core/Src/floatsat_mission.c:354:14:FS_AbsFloat	2
+../Core/Src/floatsat_mission.c:363:14:FS_ClampFloat	3
+../Core/Src/floatsat_mission.c:389:14:FS_SignFloat	3
+../Core/Src/floatsat_mission.c:413:14:FS_Wrap360Deg	3
+../Core/Src/floatsat_mission.c:442:14:FS_Wrap180Deg	2
+../Core/Src/floatsat_mission.c:472:16:FS_AttitudeChainOK	6
+../Core/Src/floatsat_mission.c:498:16:FS_LevelOK	8
+../Core/Src/floatsat_mission.c:529:13:FS_EnterState	3
+../Core/Src/floatsat_mission.c:565:13:FS_Reset	1
+../Core/Src/floatsat_mission.c:625:13:FS_UpdateYawRate	3
+../Core/Src/floatsat_mission.c:712:14:FS_PositionDuty	12
+../Core/Src/floatsat_mission.c:868:14:FS_BrakeDuty	6
+../Core/Src/floatsat_mission.c:984:14:FS_ApplySlew	2
+../Core/Src/floatsat_mission.c:1027:6:FS_Mission_Init	2
+../Core/Src/floatsat_mission.c:1052:6:FS_Mission_Update	48

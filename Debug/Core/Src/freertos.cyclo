@@ -1,0 +1,9 @@
+../Core/Src/freertos.c:1027:6:MX_FREERTOS_Init	1
+../Core/Src/freertos.c:1160:13:StartSensorTask	1
+../Core/Src/freertos.c:1188:13:StartControlTask	1
+../Core/Src/freertos.c:1215:13:StartSupervisorTask	1
+../Core/Src/freertos.c:1240:13:StartMissionTask	1
+../Core/Src/freertos.c:1268:13:StartTelemetryTask	1
+../Core/Src/freertos.c:1304:13:FS_MotorStop	1
+../Core/Src/freertos.c:1349:13:FS_MotorSetSignedDuty	6
+../Core/Src/freertos.c:1506:13:FS_I2C1_BusRecovery	6

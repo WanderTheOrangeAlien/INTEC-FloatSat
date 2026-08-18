@@ -1,0 +1,8 @@
+../Core/Src/floatsat_mag_calibration.c:99:14:FS_MagCalibration_Min3	3
+../Core/Src/floatsat_mag_calibration.c:126:14:FS_MagCalibration_Max3	3
+../Core/Src/floatsat_mag_calibration.c:166:6:FS_MagCalibration_Reset	2
+../Core/Src/floatsat_mag_calibration.c:231:6:FS_MagCalibration_Start	2
+../Core/Src/floatsat_mag_calibration.c:286:6:FS_MagCalibration_Update	9
+../Core/Src/floatsat_mag_calibration.c:371:9:FS_MagCalibration_TimeComplete	4
+../Core/Src/floatsat_mag_calibration.c:438:27:FS_MagCalibration_Finish	12
+../Core/Src/floatsat_mag_calibration.c:665:6:FS_MagCalibration_Apply	6

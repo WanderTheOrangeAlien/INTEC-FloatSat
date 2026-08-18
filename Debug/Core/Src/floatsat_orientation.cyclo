@@ -1,0 +1,7 @@
+../Core/Src/floatsat_orientation.c:112:14:FS_VectorNorm	1
+../Core/Src/floatsat_orientation.c:136:16:FS_VectorNormalize	2
+../Core/Src/floatsat_orientation.c:174:14:FS_VectorDot	1
+../Core/Src/floatsat_orientation.c:192:13:FS_VectorCross	1
+../Core/Src/floatsat_orientation.c:216:14:FS_Clamp	3
+../Core/Src/floatsat_orientation.c:243:14:FS_Wrap360	3
+../Core/Src/floatsat_orientation.c:285:24:FS_Orientation_Compute	13
