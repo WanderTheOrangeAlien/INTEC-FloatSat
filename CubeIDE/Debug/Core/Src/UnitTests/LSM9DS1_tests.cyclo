@@ -1,0 +1,3 @@
+../Core/Src/UnitTests/LSM9DS1_tests.c:5:23:LSM9DS1_IsValidDev0Reg	5
+../Core/Src/UnitTests/LSM9DS1_tests.c:12:23:LSM9DS1_IsValidDev1Reg	11
+../Core/Src/UnitTests/LSM9DS1_tests.c:38:5:Test_IMU_CheckInvalidRegs	5

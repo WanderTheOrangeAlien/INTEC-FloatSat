@@ -1,0 +1,14 @@
+../Core/Src/LSM9DS1_stm32.c:104:16:IMU_Init	17
+../Core/Src/LSM9DS1_stm32.c:171:16:IMU_CheckParams	9
+../Core/Src/LSM9DS1_stm32.c:238:16:CheckValue8	2
+../Core/Src/LSM9DS1_stm32.c:251:16:IMU_ReadDataRaw	6
+../Core/Src/LSM9DS1_stm32.c:281:16:IMU_ReadData	2
+../Core/Src/LSM9DS1_stm32.c:299:23:IMU_ConvertRaw	7
+../Core/Src/LSM9DS1_stm32.c:350:23:IMU_FindDevices	4
+../Core/Src/LSM9DS1_stm32.c:405:23:IMU_ReadReg	7
+../Core/Src/LSM9DS1_stm32.c:441:23:IMU_ReadRegInc	8
+../Core/Src/LSM9DS1_stm32.c:477:23:IMU_WriteReg	7
+../Core/Src/LSM9DS1_stm32.c:506:23:IMU_WriteRegInc	1
+../Core/Src/LSM9DS1_stm32.c:520:23:LSM9DS1_IsValidDev0Reg	5
+../Core/Src/LSM9DS1_stm32.c:528:23:LSM9DS1_IsValidDev1Reg	11
+../Core/Src/LSM9DS1_stm32.c:539:23:LSM9DS1_IsValidReg	5

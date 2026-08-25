@@ -1,0 +1,12 @@
+../Core/Src/floatsat_imu_old.c:382:17:FS_IMU_HALAddress	1
+../Core/Src/floatsat_imu_old.c:398:26:FS_IMU_WriteRegister	2
+../Core/Src/floatsat_imu_old.c:428:26:FS_IMU_ReadRegister	3
+../Core/Src/floatsat_imu_old.c:461:26:FS_IMU_ReadRegisters	4
+../Core/Src/floatsat_imu_old.c:503:16:FS_IMU_FindDevice	9
+../Core/Src/floatsat_imu_old.c:576:16:FS_IMU_JoinBytes	1
+../Core/Src/floatsat_imu_old.c:598:24:FS_IMU_ConfigureAG	6
+../Core/Src/floatsat_imu_old.c:688:24:FS_IMU_ConfigureMag	6
+../Core/Src/floatsat_imu_old.c:782:17:FS_IMU_Detect	8
+../Core/Src/floatsat_imu_old.c:865:17:FS_IMU_Init	6
+../Core/Src/floatsat_imu_old.c:954:17:FS_IMU_ReadSample	7
+../Core/Src/floatsat_imu_old.c:1142:9:FS_IMU_IsInitialized	1
