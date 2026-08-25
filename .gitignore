@@ -46,7 +46,6 @@
 *.mod*
 *.cmd
 .tmp_versions/
-venv/
 modules.order
 Module.symvers
 Mkfile.old
