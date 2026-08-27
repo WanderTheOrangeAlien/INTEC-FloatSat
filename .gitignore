@@ -56,3 +56,9 @@ dkms.conf
 
 # Python virtual enviironments
 .venv/
+
+# Ceedling build artifacts
+build/
+
+# STM32Cube
+Debug/

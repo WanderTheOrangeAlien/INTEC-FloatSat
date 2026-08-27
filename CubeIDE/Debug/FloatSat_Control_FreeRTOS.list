@@ -29,25 +29,25 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   ALLOC
  12 .ARM.attributes 00000030  00000000  00000000  0000a080  2**0
                   CONTENTS, READONLY
- 13 .debug_info   0001f5b1  00000000  00000000  0000a0b0  2**0
+ 13 .debug_info   0001dc9b  00000000  00000000  0000a0b0  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 14 .debug_abbrev 0000445d  00000000  00000000  00029661  2**0
+ 14 .debug_abbrev 00004311  00000000  00000000  00027d4b  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 15 .debug_aranges 000018c8  00000000  00000000  0002dac0  2**3
+ 15 .debug_aranges 000018b8  00000000  00000000  0002c060  2**3
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 16 .debug_rnglists 00001346  00000000  00000000  0002f388  2**0
+ 16 .debug_rnglists 00001338  00000000  00000000  0002d918  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 17 .debug_macro  00025c1c  00000000  00000000  000306ce  2**0
+ 17 .debug_macro  00025b57  00000000  00000000  0002ec50  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 18 .debug_line   0001d048  00000000  00000000  000562ea  2**0
+ 18 .debug_line   0001ce7c  00000000  00000000  000547a7  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 19 .debug_str    000dcbf2  00000000  00000000  00073332  2**0
+ 19 .debug_str    000db8d2  00000000  00000000  00071623  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 20 .comment      00000043  00000000  00000000  0014ff24  2**0
+ 20 .comment      00000043  00000000  00000000  0014cef5  2**0
                   CONTENTS, READONLY
- 21 .debug_frame  00006f58  00000000  00000000  0014ff68  2**2
+ 21 .debug_frame  00006f10  00000000  00000000  0014cf38  2**2
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 22 .debug_line_str 0000006c  00000000  00000000  00156ec0  2**0
+ 22 .debug_line_str 0000006c  00000000  00000000  00153e48  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
 
 Disassembly of section .text:
@@ -1367,7 +1367,7 @@ static floatsat_err_t IMU_WriteReg(const IMU_handle_t *handle, uint8_t device,
 
 
 // Check if the address is not a reserved register in the acc+gyro device
-static inline uint8_t LSM9DS1_IsValidDev0Reg(uint8_t reg)
+STATIC INLINE uint8_t LSM9DS1_IsValidDev0Reg(uint8_t reg)
 {
  8000bbc:	b480      	push	{r7}
  8000bbe:	b083      	sub	sp, #12
@@ -1405,7 +1405,7 @@ static inline uint8_t LSM9DS1_IsValidDev0Reg(uint8_t reg)
 08000bf2 <LSM9DS1_IsValidDev1Reg>:
 
 // Check if the address is not a reserved register in the mag device
-static inline uint8_t LSM9DS1_IsValidDev1Reg(uint8_t reg)
+STATIC INLINE uint8_t LSM9DS1_IsValidDev1Reg(uint8_t reg)
 {
  8000bf2:	b480      	push	{r7}
  8000bf4:	b083      	sub	sp, #12
@@ -1467,7 +1467,7 @@ static inline uint8_t LSM9DS1_IsValidDev1Reg(uint8_t reg)
 
 08000c4c <LSM9DS1_IsValidReg>:
 
-static inline uint8_t LSM9DS1_IsValidReg(uint8_t reg, uint8_t dev)
+STATIC INLINE uint8_t LSM9DS1_IsValidReg(uint8_t reg, uint8_t dev)
 {
  8000c4c:	b580      	push	{r7, lr}
  8000c4e:	b082      	sub	sp, #8
@@ -1508,9 +1508,9 @@ static inline uint8_t LSM9DS1_IsValidReg(uint8_t reg, uint8_t dev)
  8000c92:	bd80      	pop	{r7, pc}
 
 08000c94 <FloatSat_Init>:
-    .params = &IMU_params,
-};
 
+    return ERR_OK;
+}
 
 floatsat_err_t FloatSat_Init(floatsat_periph_t *periph)
 {
@@ -1583,7 +1583,7 @@ err:
 void MX_FREERTOS_Init(void) {
  8000cf4:	b580      	push	{r7, lr}
  8000cf6:	af00      	add	r7, sp, #0
-
+  /* add queues, ... */
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
@@ -1636,9 +1636,9 @@ void MX_FREERTOS_Init(void) {
  8000d42:	4603      	mov	r3, r0
  8000d44:	4a0f      	ldr	r2, [pc, #60]	@ (8000d84 <MX_FREERTOS_Init+0x90>)
  8000d46:	6013      	str	r3, [r2, #0]
-   * Aquí podrían crearse banderas de eventos.
-   */
 
+  /* USER CODE BEGIN RTOS_EVENTS */
+  /* add events, ... */
   /* USER CODE END RTOS_EVENTS */
 
 }
@@ -1661,7 +1661,7 @@ void MX_FREERTOS_Init(void) {
  8000d84:	200000ac 	.word	0x200000ac
 
 08000d88 <StartSensorTask>:
-  *
+  * @param  argument: Not used
   * @retval None
   */
 /* USER CODE END Header_StartSensorTask */
@@ -1671,20 +1671,19 @@ __weak void StartSensorTask(void *argument)
  8000d8a:	b082      	sub	sp, #8
  8000d8c:	af00      	add	r7, sp, #0
  8000d8e:	6078      	str	r0, [r7, #4]
-  for (;;)
+  /* USER CODE BEGIN StartSensorTask */
+  /* Infinite loop */
+  for(;;)
   {
-    /*
-     * Ceder el procesador durante al menos un tick del RTOS.
-     */
     osDelay(1);
  8000d90:	2001      	movs	r0, #1
  8000d92:	f004 fa2b 	bl	80051ec <osDelay>
  8000d96:	e7fb      	b.n	8000d90 <StartSensorTask+0x8>
 
 08000d98 <StartControlTask>:
-  * @param argument Argumento opcional de la tarea.
-  * @retval None
-  */
+* @param argument: Not used
+* @retval None
+*/
 /* USER CODE END Header_StartControlTask */
 __weak void StartControlTask(void *argument)
 {
@@ -1692,10 +1691,9 @@ __weak void StartControlTask(void *argument)
  8000d9a:	b082      	sub	sp, #8
  8000d9c:	af00      	add	r7, sp, #0
  8000d9e:	6078      	str	r0, [r7, #4]
-   *
-   * Si no se reemplaza, no se realizará control del motor.
-   */
-  for (;;)
+  /* USER CODE BEGIN StartControlTask */
+  /* Infinite loop */
+  for(;;)
   {
     osDelay(1);
  8000da0:	2001      	movs	r0, #1
@@ -1703,9 +1701,9 @@ __weak void StartControlTask(void *argument)
  8000da6:	e7fb      	b.n	8000da0 <StartControlTask+0x8>
 
 08000da8 <StartSupervisorTask>:
-  * @param argument Argumento opcional.
-  * @retval None
-  */
+* @param argument: Not used
+* @retval None
+*/
 /* USER CODE END Header_StartSupervisorTask */
 __weak void StartSupervisorTask(void *argument)
 {
@@ -1713,10 +1711,9 @@ __weak void StartSupervisorTask(void *argument)
  8000daa:	b082      	sub	sp, #8
  8000dac:	af00      	add	r7, sp, #0
  8000dae:	6078      	str	r0, [r7, #4]
-  /*
-   * Implementación vacía por defecto.
-   */
-  for (;;)
+  /* USER CODE BEGIN StartSupervisorTask */
+  /* Infinite loop */
+  for(;;)
   {
     osDelay(1);
  8000db0:	2001      	movs	r0, #1
@@ -1724,9 +1721,9 @@ __weak void StartSupervisorTask(void *argument)
  8000db6:	e7fb      	b.n	8000db0 <StartSupervisorTask+0x8>
 
 08000db8 <StartMissionTask>:
-  * @param argument Argumento opcional.
-  * @retval None
-  */
+* @param argument: Not used
+* @retval None
+*/
 /* USER CODE END Header_StartMissionTask */
 __weak void StartMissionTask(void *argument)
 {
@@ -1734,10 +1731,9 @@ __weak void StartMissionTask(void *argument)
  8000dba:	b082      	sub	sp, #8
  8000dbc:	af00      	add	r7, sp, #0
  8000dbe:	6078      	str	r0, [r7, #4]
-   * Sin una implementación alternativa no se ejecutará
-   * FS_Mission_Update().
-   */
-  for (;;)
+  /* USER CODE BEGIN StartMissionTask */
+  /* Infinite loop */
+  for(;;)
   {
     osDelay(1);
  8000dc0:	2001      	movs	r0, #1
@@ -1745,9 +1741,9 @@ __weak void StartMissionTask(void *argument)
  8000dc6:	e7fb      	b.n	8000dc0 <StartMissionTask+0x8>
 
 08000dc8 <StartTelemetryTask>:
-  * @param argument Argumento opcional.
-  * @retval None
-  */
+* @param argument: Not used
+* @retval None
+*/
 /* USER CODE END Header_StartTelemetryTask */
 __weak void StartTelemetryTask(void *argument)
 {
@@ -1755,10 +1751,9 @@ __weak void StartTelemetryTask(void *argument)
  8000dca:	b082      	sub	sp, #8
  8000dcc:	af00      	add	r7, sp, #0
  8000dce:	6078      	str	r0, [r7, #4]
-   *
-   * Sin una implementación alternativa no se enviará telemetría.
-   */
-  for (;;)
+  /* USER CODE BEGIN StartTelemetryTask */
+  /* Infinite loop */
+  for(;;)
   {
     osDelay(1);
  8000dd0:	2001      	movs	r0, #1

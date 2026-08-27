@@ -250,5 +250,11 @@ floatsat_err_t IMU_ReadData(IMU_handle_t *handle, IMU_data_t *data);
 
 floatsat_err_t IMU_CheckParams(IMU_handle_t *handle);
 
+#ifdef TEST
+bool LSM9DS1_IsValidDev0Reg(uint8_t reg);
+bool LSM9DS1_IsValidDev1Reg(uint8_t reg);
+bool LSM9DS1_IsValidReg(uint8_t reg, uint8_t dev);
+#endif
+
 
 #endif

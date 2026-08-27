@@ -66,7 +66,7 @@ static floatsat_err_t IMU_FindDevices(IMU_handle_t *handle);
 
 static uint8_t CheckValue8(uint8_t value, uint8_t expected, const char *name);
 
-static inline uint8_t LSM9DS1_IsValidReg(uint8_t reg, uint8_t dev);
+STATIC INLINE bool LSM9DS1_IsValidReg(uint8_t reg, uint8_t dev);
 
 
 /* ====================== Static variables and constants ======================= */
@@ -517,7 +517,7 @@ static floatsat_err_t IMU_WriteRegInc(const IMU_handle_t *handle, uint8_t device
 
 
 // Check if the address is not a reserved register in the acc+gyro device
-static inline uint8_t LSM9DS1_IsValidDev0Reg(uint8_t reg)
+STATIC INLINE bool LSM9DS1_IsValidDev0Reg(uint8_t reg)
 {
     return (reg > 0x03U 
             && (reg != 0x0EU) && (reg != 0x25U)
@@ -525,7 +525,7 @@ static inline uint8_t LSM9DS1_IsValidDev0Reg(uint8_t reg)
 }
 
 // Check if the address is not a reserved register in the mag device
-static inline uint8_t LSM9DS1_IsValidDev1Reg(uint8_t reg)
+STATIC INLINE bool LSM9DS1_IsValidDev1Reg(uint8_t reg)
 {
     return ( reg > 0x04
             && (reg < 0x0BU || reg > 0x0EU)
@@ -536,7 +536,7 @@ static inline uint8_t LSM9DS1_IsValidDev1Reg(uint8_t reg)
         );
 }
 
-static inline uint8_t LSM9DS1_IsValidReg(uint8_t reg, uint8_t dev)
+STATIC INLINE bool LSM9DS1_IsValidReg(uint8_t reg, uint8_t dev)
 {
     return ((dev == LSM9DS1_DEV_AG && LSM9DS1_IsValidDev0Reg(reg)) || 
         (dev == LSM9DS1_DEV_MAG && LSM9DS1_IsValidDev1Reg(reg)) );
