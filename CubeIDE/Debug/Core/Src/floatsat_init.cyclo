@@ -1,1 +1,2 @@
-../Core/Src/floatsat_init.c:44:16:FloatSat_Init	3
+../Core/Src/floatsat_init.c:43:16:FloatSat_RunUnitTests	1
+../Core/Src/floatsat_init.c:49:16:FloatSat_Init	3

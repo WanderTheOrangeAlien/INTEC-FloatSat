@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#include "test_defs.h"
+
 typedef struct Vec3_t {
     float x,y,z;
 }Vec3_t;
