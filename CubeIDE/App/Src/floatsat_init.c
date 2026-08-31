@@ -12,13 +12,12 @@
 **/
 
 #include "floatsat_init.h"
-
 static const char *LOG_TAG = "INIT";
 
 /* ============================= Module handles ============================= */
 
 /* -------------- IMU -------------- */
-const LSM9DS1_params_t IMU_params = {
+static const LSM9DS1_params_t IMU_params = {
     .gyro_odr           =   GYRO_ODR_119HZ,     
     .acc_odr            =   ACC_ODR_119HZ,      
     .mag_odr            =   MAG_ODR_80HZ,
@@ -36,9 +35,13 @@ const LSM9DS1_params_t IMU_params = {
     .mag_en_temp_comp   =   LSM9DS1_MAG_TEMP_COMP_EN
 };
 
-IMU_handle_t IMU_handle = {
+static IMU_handle_t IMU_handle = {
     .params = &IMU_params,
 };
+
+/* -------------- Madgwick filter -------------- */
+static madgwick_filter_t madgwick_filter = {0};
+
 
 floatsat_err_t FloatSat_RunUnitTests()
 {
@@ -57,9 +60,13 @@ floatsat_err_t FloatSat_Init(floatsat_periph_t *periph)
     // IMU
     IMU_handle.i2c_handle = periph->imu_i2c;
     GOTO_ON_ERR_LOG(IMU_Init(&IMU_handle), err, ret,
-        LOG_TAG, "Error initializaing IMU. Error code = 0x%04x",ret);
+        LOG_TAG, "Error initializaing IMU. Error code: 0x%04x",ret);
     
     IMU_CheckParams(&IMU_handle); // Test for proper initialization
+
+    // Madgwick filter
+    GOTO_ON_ERR_LOG(Madgwick_Init(&madgwick_filter),err ,ret,
+        LOG_TAG, "Errorr initializing Madgwick filter. Error code: 0x%04x",ret);
 
     return ERR_OK;
 

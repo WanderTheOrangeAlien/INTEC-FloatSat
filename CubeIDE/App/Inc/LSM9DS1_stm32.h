@@ -231,18 +231,7 @@ typedef struct IMU_handle_t {
 
 }IMU_handle_t;
 
-typedef struct IMU_data_raw_t {
-    Vec3_16_t accel;
-    Vec3_16_t gyro;
-    Vec3_16_t mag;
-    uint8_t is_valid;
-}IMU_data_raw_t;
 
-typedef struct IMU_data_t {
-    Vec3_t accel;
-    Vec3_t gyro;
-    Vec3_t mag;
-}IMU_data_t;
 
 floatsat_err_t IMU_Init(IMU_handle_t *handle);
 floatsat_err_t IMU_ReadDataRaw(IMU_handle_t *handle, IMU_data_raw_t *data);

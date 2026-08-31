@@ -10,6 +10,7 @@
 
 #define STATIC
 #define INLINE
+#warning "TEST was defined"
 
 #endif
 

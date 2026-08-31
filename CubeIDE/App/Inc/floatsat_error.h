@@ -18,9 +18,11 @@ typedef enum floatsat_err_t {
     ERR_INVALID_ARG         =   0x001,
     ERR_OUT_OF_MEM          =   0x002,
     ERR_DEVICE_NOT_FOUND    =   0x003,
-    ERR_DEV_I2C_FAIL       =   0x004,
+    ERR_DEV_I2C_FAIL        =   0x004,
     ERR_INVALID_REG         =   0x005,
     ERR_INVALID_STATE       =   0x006,
+    
+    ERR_UART_TX_FAIL        =   0x100,
 
 }floatsat_err_t;
 
