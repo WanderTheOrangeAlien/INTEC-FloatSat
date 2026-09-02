@@ -5,7 +5,9 @@
             "includePath": [
                 "${default}",
                 "${workspaceFolder}/**",
-                "${workspaceFolder}/Middlewares/Third_Party/**"
+                "${workspaceFolder}/CubeIDE/App/**",
+                "${workspaceFolder}/CubeIDE/Middlewares/Third_Party/**",
+                "${workspaceFolder}/CubeIDE/Drivers/CMSIS/**"
             ],
             "cStandard": "c17",
             "cppStandard": "gnu++17",

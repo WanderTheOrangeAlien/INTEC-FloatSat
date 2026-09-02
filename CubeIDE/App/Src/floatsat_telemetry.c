@@ -24,7 +24,7 @@ floatsat_err_t Telemetry_Init(telemetry_handle_t *handle)
         return ERR_INVALID_STATE;
     }
 
-
+    return ERR_OK;
 
 }
 
@@ -42,7 +42,7 @@ void telemetry_task(void *args)
         
         // Access shared resource atomically
         portENTER_CRITICAL();
-        packet.orientation = handle->g_orientation;
+        packet.orientation = *(handle->g_orientation);
         portEXIT_CRITICAL(); 
 
         // TODO: Figure out when to send the extended packets (could be a counter)

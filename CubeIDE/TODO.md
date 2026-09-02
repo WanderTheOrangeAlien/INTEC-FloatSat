@@ -19,6 +19,9 @@ We need to perform the following activities
 - Research FreeRTOS task trace
 - Implement periodic task for reading the IMU 
 
+- Implement telecommands                            DOING NOW
+- Unit test all telecommands                        NEXT
+
 - Implement library for reaction wheel control
 - Unit tests for RW control
   
