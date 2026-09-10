@@ -33,11 +33,16 @@ typedef struct IMU_data_t {
 
 typedef uint64_t timestamp_t;
 
-#define CMD_ID_SET_CONTROL      0x10
 
-#define CMD_ID_INFO_CONTROL     0x50
-#define CMD_ID_INFO_MISSION     0x51
-#define CMD_ID_INFO_PHOTO       0x52
+#define CMD_ID_CONTROL_INFO     0x10
+#define CMD_ID_CONTROL_SET      0x11
+
+#define CMD_ID_MISSION_INFO     0x20
+#define CMD_ID_MISSION_SET      0x21
+
+#define CMD_ID_PHOTO_INFO       0x30
+#define CMD_ID_PHOTO_ADD       0x31
+#define CMD_ID_PHOTO_RESET       0x32
 
 
 typedef struct floatsat_cmd_t {
@@ -54,12 +59,18 @@ typedef struct floatsat_cmd_t {
 #define CONTROL_TYPE_PID            1
 #define CONTROL_TYPE_LQR            2
 
-#define MIN_CONTROL_PARAMS      3
-#define MAX_CONTROL_PARAMS      4
+#define CONTROL_MIN_PARAMS      3
+#define CONTROL_MAX_PARAMS      4
 typedef struct floatsat_args_set_control_t {
     uint8_t control_type;   // see @control_type
-    double control_params[MAX_CONTROL_PARAMS];
+    float control_params[CONTROL_MAX_PARAMS];
 }floatsat_args_set_control_t;
+
+typedef struct floatsat_time_t {
+    uint8_t hours;
+    uint8_t minutes;
+    uint8_t seconds;
+}floatsat_time_t;
 
 
 #endif

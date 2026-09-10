@@ -9,6 +9,10 @@
                 "${workspaceFolder}/CubeIDE/Middlewares/Third_Party/**",
                 "${workspaceFolder}/CubeIDE/Drivers/CMSIS/**"
             ],
+            "defines": [
+                "STM32F407xx",
+                "TEST"
+            ],
             "cStandard": "c17",
             "cppStandard": "gnu++17",
             "intelliSenseMode": "linux-gcc-x64"

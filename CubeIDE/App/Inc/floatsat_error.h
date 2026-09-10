@@ -25,7 +25,10 @@ typedef enum floatsat_err_t {
     ERR_UART_TX_FAIL        =   0x100,
 
     ERR_TOO_MANY_ARGS       =   0x500,
-    ERR_INVALID_CMD         =   0x501
+    ERR_INVALID_CMD         =   0x501,
+    ERR_CMD_NOT_FOUND       =   0x502,
+
+    ERR_INVALID_TIME        =   0x600,
 
 }floatsat_err_t;
 

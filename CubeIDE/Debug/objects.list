@@ -3,6 +3,7 @@
 "./App/Src/floatsat_init.o"
 "./App/Src/floatsat_telecommand.o"
 "./App/Src/floatsat_telemetry.o"
+"./App/Src/floatsat_time.o"
 "./App/Src/madgwick_filter.o"
 "./App/Src/telecommand_parser.o"
 "./App/Src/vec_math.o"

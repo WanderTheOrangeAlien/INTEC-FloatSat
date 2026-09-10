@@ -16,7 +16,7 @@
   # optional features. If you don't need them, keep them turned off for performance
   :use_mocks: TRUE
   :use_test_preprocessor: :all  # options are :none, :mocks, :tests, or :all
-  :use_backtrace: :simple        # options are :none, :simple, or :gdb
+  :use_backtrace: :gdb        # options are :none, :simple, or :gdb
 
   # tweak the way ceedling handles automatic tasks
   :build_root: build
@@ -69,7 +69,7 @@
     #- report_build_warnings_log
     #- report_tests_gtestlike_stdout
     #- report_tests_ide_stdout
-    #- report_tests_log_factory
+    - report_tests_log_factory
     - report_tests_pretty_stdout
     #- report_tests_raw_output_log
     #- report_tests_teamcity_stdout
@@ -100,11 +100,15 @@
     - +:test/**
     - -:test/support
   :source:
+    - App/Src/**
     - Core/Src/**
+    - Lib/Src/**
     - Drivers/**
     - Middlewares/**
   :include:
+    - App/Inc/**
     - Core/Inc/**
+    - Lib/Inc/**
     - Drivers/**
     - Middlewares/**
   :support:
@@ -131,6 +135,7 @@
     # The following defines are needed because the STM32 HAL has numerous conditionally compiled definitions,
     # so we need to explicitly "activate" all those compilation blocks
     - STM32F407xx 
+    
 
     # I2C
     - USE_HAL_I2C_REGISTER_CALLBACKS=0
@@ -215,7 +220,7 @@
 # Configuration options specific to Unity. 
 :unity:
   :defines:
-    - UNITY_EXCLUDE_FLOAT
+    - UNITY_INCLUDE_FLOAT
 
 # You can optionally have ceedling create environment variables for you before
 # performing the rest of its tasks.
@@ -236,8 +241,10 @@
   :placement: :end
   :flag: "-l${1}"
   :path_flag: "-L ${1}"
-  :system: []    # for example, you might list 'm' to grab the math library
-  :test: []
+  :system: 
+    - m     # for example, you might list 'm' to grab the math library
+  :test:
+    # - m
   :release: []
 
 ################################################################

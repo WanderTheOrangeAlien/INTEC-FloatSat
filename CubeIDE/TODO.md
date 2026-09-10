@@ -16,11 +16,17 @@ We need to perform the following activities
 - Implement IMU library hardware-independent tests  
   - Test for catching invalid registers             DONE
   - Test for correct conversions
-- Research FreeRTOS task trace
+- Research FreeRTOS task trace                      DONE
 - Implement periodic task for reading the IMU 
 
-- Implement telecommands                            DOING NOW
-- Unit test all telecommands                        NEXT
+- Implement telecommands                            DONE
+- Unit test all telecommands                        DONE
+
+- Fnish telemetry design (add the info requests)    IN PROOGRESS
+  
+- Supervisor
+  - Implement changes in internal state through commands        NEXT 
+
 
 - Implement library for reaction wheel control
 - Unit tests for RW control

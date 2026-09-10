@@ -41,3 +41,8 @@ example, combine arbitrary readings like mag with temperature or gyro and acc)
 
 
 I suggest using argtable3 for implementing the terminal in the microcontroller
+
+# September
+## (09-09-26) On UART baudrate
+The max baudrate of the STM32F407 is 5.25 MBit/s @ 16 bit oversampling (default)
+The max baudrate of the ESP32-S3 is 5Mbit/s at the default clock source
