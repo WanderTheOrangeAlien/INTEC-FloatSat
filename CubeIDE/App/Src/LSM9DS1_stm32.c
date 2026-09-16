@@ -503,11 +503,11 @@ static floatsat_err_t IMU_WriteReg(const IMU_handle_t *handle, uint8_t device,
     return ERR_OK;
 }
 
+__attribute__((unused))
 static floatsat_err_t IMU_WriteRegInc(const IMU_handle_t *handle, uint8_t device,
                                         uint8_t reg, uint8_t *data, uint8_t data_len)
 {
-    #warning "Not implemented yet!"
-
+    
     return ERR_OK;
 }
 

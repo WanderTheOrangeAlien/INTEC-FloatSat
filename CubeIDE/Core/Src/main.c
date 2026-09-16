@@ -31,6 +31,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
+#include "dma.h"
 #include "i2c.h"
 #include "tim.h"
 #include "usart.h"
@@ -115,16 +116,18 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_I2C1_Init();
   MX_TIM1_Init();
   MX_TIM3_Init();
   MX_USART1_UART_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
 
   floatsat_periph_t peripherals = {
-    .imu_i2c    =   &IMU_I2C
+    .imu_i2c    =   &IMU_I2C,
+    .main_uart  =   &MAIN_UART
   };
-
 
   FloatSat_Init(&peripherals);
 
@@ -248,11 +251,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   }
   /* USER CODE BEGIN Callback 1 */
 
-  /*
-   * Espacio reservado para código posterior al incremento del tick.
-   *
-   * También se ejecuta en contexto de interrupción.
-   */
+  if(htim == &MICROSEC_TIMER){
+    Util_IncTimeUs();
+  }
 
   /* USER CODE END Callback 1 */
 }

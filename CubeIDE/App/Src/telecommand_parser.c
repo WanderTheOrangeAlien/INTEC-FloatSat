@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <assert.h>
 
 #include "floatsat_time.h"
 
@@ -39,6 +40,11 @@ static struct {
     struct arg_str *params;
     struct arg_end *end;
 }argtable_control_set;
+
+static struct {
+    struct arg_dbl *angle;
+    struct arg_end *end;
+}argtable_control_angle;
 
 /* =========================== Mission command =========================== */
 // Format: misson -i
@@ -87,9 +93,14 @@ static const size_t cmd_handler_table_len = sizeof(cmd_handler_table) / sizeof(c
 
 floatsat_err_t CmdParser_Init(parser_ctx_t *ctx)
 {
+#ifndef TEST
+    static_assert(sizeof(float) == sizeof(void*), "");
+#endif
     if(!ctx){
         return ERR_INVALID_ARG;
     }
+
+    memset(ctx,0,sizeof(parser_ctx_t));
 
     cmd_init_control();
     cmd_init_mission();
@@ -142,6 +153,10 @@ static int cmd_init_control()
     argtable_control_set.type           =   arg_str0("t", "type", "PID|LQR", "Controller type");
     argtable_control_set.params         =   arg_str1("p","params","<float>,<float>...",NULL);
     argtable_control_set.end            =   arg_end(CMD_MAX_ERRORS);
+
+    // Format: control -a <angle>
+    argtable_control_angle.angle        =   arg_dbl1("a","angle","float","Target azimuth angle");
+    argtable_control_angle.end          =   arg_end(CMD_MAX_ERRORS);
 
     // TODO: Check for NULL pointers!
 
@@ -207,6 +222,7 @@ static floatsat_err_t parse_cmd_control(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
 
     nerrors_arr[0] = arg_parse(ctx->argc,ctx->argv, (void**)&argtable_control_info);
     nerrors_arr[1] = arg_parse(ctx->argc,ctx->argv, (void**)&argtable_control_set);
+    nerrors_arr[2] = arg_parse(ctx->argc,ctx->argv, (void**)&argtable_control_angle);
 
 
     *cmd = (floatsat_cmd_t){0}; 
@@ -259,6 +275,15 @@ static floatsat_err_t parse_cmd_control(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
             return ret;
         }
 
+
+    }else if(!nerrors_arr[2]){
+        float angle = (float)argtable_control_angle.angle->dval[0];
+
+        if(angle < 0 || angle >= 360){
+            return ERR_INVALID_CMD;
+        }
+        cmd->cmd_id = CMD_ID_CONTROL_ANGLE;
+        memcpy(&cmd->params, &angle, sizeof(float));
 
     }else{
         // printf("Errors: [%d %d]\n",nerrors_arr[0], nerrors_arr[1]);
@@ -402,8 +427,9 @@ cleanup:
 
 #pragma endregion
 
-/// @brief Process a message to obtain the standard argc and argv params. 
-/// Whitespces are replaced by NULL terminators. A NULL terminator is also written in the byte
+/// @brief Process a message to obtain POSIX style argc and argv params. 
+/// There is no dynamic allocation, the same `msg_body` buffer is used, and 
+/// parameters are separated by replacing the next space with a NULL character. A NULL terminator is also written in the byte
 /// directly after the buffer, so make sure there are len+1 bytes available
 /// @param msg_body Pointer to the message body buffer, without the header
 /// @param len Length of the message body. 

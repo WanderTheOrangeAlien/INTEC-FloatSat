@@ -22,16 +22,20 @@ We need to perform the following activities
 - Implement telecommands                            DONE
 - Unit test all telecommands                        DONE
 
-- Fnish telemetry design (add the info requests)    IN PROOGRESS
+- Fnish telemetry design (add the info requests)    DONE
+  - Unit Test Telemetry
   
-- Supervisor
-  - Implement changes in internal state through commands        NEXT 
+- Supervisor                                        DOING
+  - Implement changes in internal state through commands   DONE
+  - Implement response to info requests
+  -       
 
+- A library for measuring the execution time of tasks DONE?
 
 - Implement library for reaction wheel control
 - Unit tests for RW control
   
-- Implement Madwick filter (to estimate azimuth)
+- Implement Madwick filter                          DONE
 - Unit tests for Madwick filter
 
 - Implement simple PID control
@@ -41,4 +45,8 @@ We need to perform the following activities
 - Unit test calibration
 
 ## DEMO 1: Simple PID control
-- 
+
+
+
+## Good to have
+Verbose error log through telemetry packets

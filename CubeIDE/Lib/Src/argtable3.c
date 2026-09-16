@@ -1562,7 +1562,7 @@ static void warnx(const char* fmt, ...) {
 }
 
 #else
-// #include <err.h>
+#include "err.h"
 #endif /*_WIN32*/
 /*
  * Compute the greatest common divisor of a and b.

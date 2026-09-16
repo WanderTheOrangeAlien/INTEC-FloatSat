@@ -6,27 +6,29 @@
 
 #include "LSM9DS1_stm32.h"
 #include "madgwick_filter.h"
+#include "floatsat_telemetry.h"
 
-typedef struct floatsat_control_handle_t {
+#define CONTROL_LOOP_PERIOD_MS      10
+
+typedef struct control_handle_t {
     IMU_handle_t *imu;
     madgwick_filter_t *madgwick;
+    telemetry_handle_t *telemetry_handle;
 
     TaskHandle_t task_handle;
-    TaskHandle_t telemetry_task_handle;
 
-    float *g_target_angle;  // Target angle. The g_ prefix indicates that is a shared resource.
-                            // Ensure atomic access
+    control_config_t *g_control_config; // Configuration struct shared with the supervisor
 
     Vec3_t *g_orientation;  // Shared orientation data so other tasks can access it, for instamce, telemetry
 
     //  TODO: Add motor drive handle
 
-}floatsat_control_handle_t;
+}control_handle_t;
 
-floatsat_err_t Control_Init(floatsat_control_handle_t *handle);
+floatsat_err_t Control_Init(control_handle_t *handle);
 
 
-floatsat_err_t Control_Update(floatsat_control_handle_t *handle);
+floatsat_err_t Control_Update(control_handle_t *handle);
 
 
 

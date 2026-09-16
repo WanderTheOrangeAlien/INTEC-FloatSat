@@ -1,8 +1,14 @@
 #ifndef INC_FLOATSAT_LOG_H
 #define INC_FLOATSAT_LOG_H
 
+
 #include "stm32f4xx_hal.h"
+
 #include <stdio.h>
+#include <stdarg.h>
+#include <stdbool.h>
+
+
 
 #define LOG_LEVEL_ERROR     0
 #define LOG_LEVEL_WARNING   1
@@ -34,32 +40,64 @@
 #define LOG_COLOR_I       LOG_COLOR_GREEN
 #define LOG_COLOR_D       LOG_COLOR_RESET
 
+/* Config macros */
+#define LOG_LEVEL LOG_LEVEL_DEBUG
+#define USE_PRINTF
+
+
+#define LOG_BUFFER_SIZE             4096
+#define LOG_MAX_MSG_SIZE            256
+
+#define TEST_LOG_BUFFER_SIZE        128
+
+
+typedef struct ringbuff_t {
+    uint8_t *buffer;
+    size_t head;
+    size_t tail;
+    size_t max_len;
+    bool full;
+}ringbuff_t;
+
+void Log(const char *format, ...);
+int Log_PopNextMsg(uint8_t *buffer, size_t *out_msg_size);
+void Log_ResetBuffer();
+const ringbuff_t *Log_GetRingbuff(void);
+
+#ifdef USE_PRINTF
+#define LOG(x, ...) printf(x ,...)
+#else
+#define LOG(x, ...) Log(x ,...)
+#endif
+
+
 #if LOG_LEVEL >= LOG_LEVEL_ERROR
     #define LOGE(tag, format, ...) \
-        do { printf(LOG_COLOR_E "(%lu) [%s] " format LOG_COLOR_RESET "\n", HAL_GetTick(), tag, ##__VA_ARGS__); } while(0)
+        do { Log(LOG_COLOR_E "(%lu) [%s] " format LOG_COLOR_RESET "\n", HAL_GetTick(), tag, ##__VA_ARGS__); } while(0)
 #else
     #define LOGE(tag, format, ...) do {} while(0)
 #endif
 
 #if LOG_LEVEL >= LOG_LEVEL_WARNING
     #define LOGW(tag, format, ...) \
-        do { printf(LOG_COLOR_W "(%lu) [%s] " format LOG_COLOR_RESET "\n", HAL_GetTick(), tag, ##__VA_ARGS__); } while(0)
+        do { Log(LOG_COLOR_W "(%lu) [%s] " format LOG_COLOR_RESET "\n", HAL_GetTick(), tag, ##__VA_ARGS__); } while(0)
 #else
     #define LOGW(tag, format, ...) do {} while(0)
 #endif
 
 #if LOG_LEVEL >= LOG_LEVEL_INFO
     #define LOGI(tag, format, ...) \
-        do { printf(LOG_COLOR_I "(%lu) [%s] " format LOG_COLOR_RESET "\n", HAL_GetTick(), tag, ##__VA_ARGS__); } while(0)
+        do { Log(LOG_COLOR_I "(%lu) [%s] " format LOG_COLOR_RESET "\n", HAL_GetTick(), tag, ##__VA_ARGS__); } while(0)
 #else
     #define LOGI(tag, format, ...) do {} while(0)
 #endif
 
 #if LOG_LEVEL >= LOG_LEVEL_DEBUG
     #define LOGD(tag, format, ...) \
-        do { printf(LOG_COLOR_D "(%lu) [%s] " format LOG_COLOR_RESET "\n", HAL_GetTick(), tag, ##__VA_ARGS__); } while(0)
+        do { Log(LOG_COLOR_D "(%lu) [%s] " format LOG_COLOR_RESET "\n", HAL_GetTick(), tag, ##__VA_ARGS__); } while(0)
 #else
     #define LOGD(tag, format, ...) do {} while(0)
 #endif
+
 
 #endif

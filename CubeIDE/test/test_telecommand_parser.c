@@ -11,6 +11,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "floatsat_time.h"
+#include "floatsat_log.h"
 
 // File under test
 #include "telecommand_parser.h"
@@ -155,10 +156,6 @@ void test_parse_control(void)
         ret = CmdParser_Parse(&ctx, buffers_control_invalid[i], strlen(buffers_control_invalid[i]), &cmd);
         TEST_ASSERT_EQUAL_INT(ERR_INVALID_CMD, ret);
     }
-
-
-
-
 
     if(cmd.params){
         free(cmd.params);

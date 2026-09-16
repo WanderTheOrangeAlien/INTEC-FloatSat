@@ -1,6 +1,2 @@
-../Core/Src/freertos.c:105:6:MX_FREERTOS_Init	1
-../Core/Src/freertos.c:159:13:StartSensorTask	1
-../Core/Src/freertos.c:177:13:StartControlTask	1
-../Core/Src/freertos.c:195:13:StartSupervisorTask	1
-../Core/Src/freertos.c:213:13:StartMissionTask	1
-../Core/Src/freertos.c:231:13:StartTelemetryTask	1
+../Core/Src/freertos.c:116:6:MX_FREERTOS_Init	1
+../Core/Src/freertos.c:177:6:StartDefaultTask	1

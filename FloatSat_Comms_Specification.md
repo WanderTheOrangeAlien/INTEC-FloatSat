@@ -20,7 +20,7 @@ FreeRTOS tick of the Telemetry Task. After fast telmetry is sent Slow Telemetry 
 
 The priority of tasks and overall task structure must guarantee that the 
 following assumption always hold true:
-> **The Control and Telemetry tasks are never interrupted by a task switch**
+> **The Control and Telemetry tasks always run to completion (never interrupted by a task switch)**
 
 The complete supervisor + control loop + telemetry sequence is the following:  
 
@@ -53,9 +53,8 @@ Slow Telemetry is guaranteed to be sent on the same tick as the Fast one, howeve
 are not. To address this problem, the comms system divides the the Info Packets
 into fixed-length chunks and sends them in the remaining time of the current 
 Tick. Before sendig a chunk, it checks whether there is enough time left in the 
-tick for it to be sent completely, with a safety margin. If not, it blocks with
-vTaskDelayUntil to hand control to other tasks.
-
+tick for it to be sent completely, with a safety margin. If not, it cancels the
+transmission and yeilds
 
 _____
 [1] This shared memory is a small buffer protected by atomic access (critical 
@@ -64,18 +63,28 @@ section), shared only between the Control and Telemetry Tasks.
 
 ## Telemetry types
 
+Fast and slow telemetry share a parent structure simply called 
+`telemetry_packet_t`. This structure contains a header, and then the fast and 
+slow packets structures
+
+### Packet (`telemetry_packet_t`)
+| Name     	| Type   	                  | Size 	| Notes                 |
+|----------	|--------	                  |------	|----------             |
+| type 	    | uint8_t                   | 1   	|                       |
+| timestamp | uint64_t                  | 8    	| ms since powered on   |
+| fast      | telemetry_packet_fast_t   | 16    |                       |
+| slow      | telemetry_packet_slow_t   | TBD   |                       |   
 
 
-### Fast telemetry
+### Fast telemetry (`telemetry_packet_fast_t`)
 | Name     	| Type   	| Size 	| Notes                 |
 |----------	|--------	|------	|----------             |
-| Type      | uint8_t   | 1     |                       |
 | Attitude 	| Vec3_t 	| 12   	|                       |
 | RW_Speed 	| float  	| 4    	| Reaction wheel speed  |
 
 Fast telemetry is sent after every control update. 
 
-### Slow Telemetry
+### Slow Telemetry (`telemetry_packet_slow_t`)
 
 (Place table here)
 
@@ -90,7 +99,8 @@ at larger intervals
 ### Header
 | Name     	    | Type   	  | Size 	    | Notes                 |
 |----------	    |--------	  |------	    |----------             |
-| Type          | uint8_t   | 1         | PACKET_TYPE_INFO_HDR  |
+| ID            | uint8_t   | 1         | PACKET_TYPE_INFO_HDR  |
+| timestamp     | uint64_t  | 8         | ms since boot         |
 | nChunks       | uint8_t   | 1         |                       |
 | lastChunkSize | uint8_t 	| 1   	    |                       |
 | CRC           | uint16_t 	| 2   	    | CRC of the whole message before dividing|
@@ -98,7 +108,7 @@ at larger intervals
 ### Chunk
 | Name     	    | Type   	  | Size 	                    | Notes                 |
 |----------	    |--------	  |------	                    |----------             |
-| Type          | uint8_t   | 1                         | PACKET_TYPE_INFO_CHUNK  |
+| ID            | uint8_t   | 1                         | PACKET_TYPE_INFO_CHUNK  |
 | chunkNumber   | uint8_t   | 1                         |                         |
 | Data          | uint8_t[] | `INFO_PACKET_CHUNK_SIZE`  |                         |
 

@@ -4,13 +4,14 @@
 #include <stdint.h>
 #include "floatsat_types.h"
 #include "floatsat_error.h"
+#include "floatsat_log.h"
 
 #include "argtable3.h"
 
 #define CMD_PARSER_MAX_ARGS         16
 #define CMD_MAX_ERRORS              20
 
-#define CMD_CONTROL_N_SUBCMD        2   // Number of subcommands for the control command
+#define CMD_CONTROL_N_SUBCMD        3   // Number of subcommands for the control command
 #define CMD_MISSION_N_SUBCMD        2   //  Number of subcommands for the mission command
 #define CMD_PHOTO_N_SUBCMD          3   //  Number of subcommands for the photo command
 
@@ -20,12 +21,7 @@ typedef struct parser_ctx_t {
 }parser_ctx_t;
 
 
-typedef struct photo_info_t {
-    float angle;
-    floatsat_time_t time;
-    uint32_t duration;
 
-}photo_info_t;
 
 typedef floatsat_err_t(*cmd_handler_t)(parser_ctx_t *ctx, floatsat_cmd_t *cmd);
 

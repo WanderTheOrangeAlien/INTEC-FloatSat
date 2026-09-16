@@ -31,6 +31,8 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "floatsat_utils.h"
+#include "floatsat_init.h"
 
 /* USER CODE END Includes */
 
@@ -58,6 +60,8 @@ void Error_Handler(void);
 
 /* Private defines -----------------------------------------------------------*/
 #define IMU_I2C hi2c1
+#define MICROSEC_TIMER htim2
+#define MAIN_UART huart1
 #define CS_I2C_SPI_Pin GPIO_PIN_3
 #define CS_I2C_SPI_GPIO_Port GPIOE
 #define PC14_OSC32_IN_Pin GPIO_PIN_14

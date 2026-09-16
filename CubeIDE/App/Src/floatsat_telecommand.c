@@ -5,9 +5,11 @@
 #include "stm32f4xx_hal_uart.h"
 #include "stm32f407xx.h"
 
+#include "floatsat_utils.h"
+
+
 
 static floatsat_err_t CmdManager_AddToRegistry(cmd_manager_handle_t *handle);
-static int UART2Index(USART_TypeDef *uart_base);
 
 
 static const char *LOG_TAG = "CMD_MANAGER";
@@ -24,37 +26,59 @@ floatsat_err_t CmdManager_Init(cmd_manager_handle_t *handle)
         return ERR_INVALID_ARG;
     }
 
-    if(!handle->uart || !handle->dma_buffer || !handle->msg_buffer || handle->task_handle == 0U){
+    if(!handle->uart || !handle->dma_buffer || !handle->msg_buffer || 
+        !handle->parser_ctx || !handle->core_cmd_queue){
         return ERR_INVALID_ARG;
     }
 
-    floatsat_err_t ret;
+    floatsat_err_t ret = ERR_OK;
 
     handle->msg_buffer_empty = true;
 
     GOTO_ON_ERR(CmdManager_AddToRegistry(handle),err,ret);
-
+    GOTO_ON_ERR(CmdParser_Init(handle->parser_ctx), err, ret);
     
-
-
     // Start reception
+    GOTO_ON_HAL_ERR(HAL_UART_Receive_DMA(handle->uart, (uint8_t*)handle->dma_buffer, sizeof(floatsat_msg_header_t)),
+        err, ret);
+    return ERR_OK;
 
 err:
 
-    return ERR_OK;
+    return ret;
 }
 
 
-void CmdManager_Task(void *args)
+void Task_TelecmdFn(void *args)
 {
     cmd_manager_handle_t *handle = (cmd_manager_handle_t*)args;
     uint32_t notification_value;
+    floatsat_err_t ret = ERR_OK;
+    BaseType_t freertos_err = pdTRUE;
 
+    handle->task_handle = xTaskGetCurrentTaskHandle();
+
+    floatsat_cmd_t cmd = {0};
 
     while(1){
         notification_value = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
+        // The DMA Interrupt finished copying the recieved message into the handle msg buffer
+        GOTO_ON_ERR(CmdParser_Parse(handle->parser_ctx, (uint8_t*)handle->msg_buffer, handle->xfer_len, &cmd),
+            err, ret);
 
+        // Send the command to the Core
+        freertos_err = xQueueSend(handle->core_cmd_queue, &cmd, 0U);
+
+        if(freertos_err == errQUEUE_FULL){
+            LOGE(LOG_TAG,"Command queue was full! Las command was dropped");
+        }
+        
+        continue;
+
+
+err:
+        // Report the error through a telemetry info packet
 
     }
 }
@@ -74,7 +98,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
     // the actual message? The microcntorller will keep waiting for data that will not come
     // A far stretch, indeed, but should be account for this?
 
-    int index = UART2Index(huart->Instance);
+    int index = Util_UART2Index(huart->Instance);
     if(index < 0){
         LOGE(LOG_TAG,"HOW?!");
         return;
@@ -120,6 +144,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
 
         if(handle->msg_buffer_empty){
+            // Note that the header is overwritten. This is intentional, since the header information was saved in the handle
             memcpy((uint8_t*)handle->msg_buffer, (uint8_t*)handle->dma_buffer, handle->xfer_len + sizeof(floatsat_msg_header_t));
             handle->msg_buffer_empty = false;
 
@@ -157,25 +182,7 @@ header_err:
 }
 
 
-static int UART2Index(USART_TypeDef *uart_base)
-{
-    if(!uart_base){
-        return -1;
-    }
 
-    static const USART_TypeDef *const UART_MAP[] = {
-        USART1, USART2, USART3, UART4, UART5
-    };
-
-    for (size_t i = 0; i < sizeof(UART_MAP) / sizeof(USART_TypeDef*); i++){
-        if(uart_base == UART_MAP[i]){
-            return i;
-        }
-    }
-    
-    return -1;
-    
-}
 
 static floatsat_err_t CmdManager_AddToRegistry(cmd_manager_handle_t *handle)
 {
@@ -183,7 +190,7 @@ static floatsat_err_t CmdManager_AddToRegistry(cmd_manager_handle_t *handle)
         return ERR_INVALID_ARG;
     }
 
-    int index = UART2Index(handle->uart->Instance);
+    int index = Util_UART2Index(handle->uart->Instance);
     if(index < 0){
         LOGE(LOG_TAG,"Invalid UART instance");
         return ERR_INVALID_ARG;

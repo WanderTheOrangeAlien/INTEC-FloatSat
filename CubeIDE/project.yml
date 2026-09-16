@@ -102,11 +102,13 @@
   :source:
     - App/Src/**
     - Core/Src/**
+    - App/Mocks/**
     - Lib/Src/**
     - Drivers/**
     - Middlewares/**
   :include:
     - App/Inc/**
+    - App/Mocks/**
     - Core/Inc/**
     - Lib/Inc/**
     - Drivers/**

@@ -47,40 +47,50 @@
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
 
+static const floatsat_handles_t *handles;
+
+
 /* USER CODE END Variables */
-/* Definitions for SensorTask */
-osThreadId_t SensorTaskHandle;
-const osThreadAttr_t SensorTask_attributes = {
-  .name = "SensorTask",
-  .stack_size = 512 * 4,
-  .priority = (osPriority_t) osPriorityHigh,
-};
-/* Definitions for ControlTask */
-osThreadId_t ControlTaskHandle;
-const osThreadAttr_t ControlTask_attributes = {
-  .name = "ControlTask",
-  .stack_size = 512 * 4,
-  .priority = (osPriority_t) osPriorityHigh,
-};
-/* Definitions for SupervisorTask */
-osThreadId_t SupervisorTaskHandle;
-const osThreadAttr_t SupervisorTask_attributes = {
-  .name = "SupervisorTask",
-  .stack_size = 384 * 4,
-  .priority = (osPriority_t) osPriorityAboveNormal,
-};
-/* Definitions for MissionTask */
-osThreadId_t MissionTaskHandle;
-const osThreadAttr_t MissionTask_attributes = {
-  .name = "MissionTask",
-  .stack_size = 384 * 4,
+/* Definitions for defaultTask */
+osThreadId_t defaultTaskHandle;
+const osThreadAttr_t defaultTask_attributes = {
+  .name = "defaultTask",
+  .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
-/* Definitions for TelemetryTask */
-osThreadId_t TelemetryTaskHandle;
-const osThreadAttr_t TelemetryTask_attributes = {
-  .name = "TelemetryTask",
+/* Definitions for Task_Telemetry */
+osThreadId_t Task_TelemetryHandle;
+const osThreadAttr_t Task_Telemetry_attributes = {
+  .name = "Task_Telemetry",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for Task_Telecmd */
+osThreadId_t Task_TelecmdHandle;
+const osThreadAttr_t Task_Telecmd_attributes = {
+  .name = "Task_Telecmd",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for Task_Control */
+osThreadId_t Task_ControlHandle;
+const osThreadAttr_t Task_Control_attributes = {
+  .name = "Task_Control",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for Task_Core */
+osThreadId_t Task_CoreHandle;
+const osThreadAttr_t Task_Core_attributes = {
+  .name = "Task_Core",
   .stack_size = 256 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for Task_Log */
+osThreadId_t Task_LogHandle;
+const osThreadAttr_t Task_Log_attributes = {
+  .name = "Task_Log",
+  .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
 
@@ -89,11 +99,12 @@ const osThreadAttr_t TelemetryTask_attributes = {
 
 /* USER CODE END FunctionPrototypes */
 
-void StartSensorTask(void *argument);
-void StartControlTask(void *argument);
-void StartSupervisorTask(void *argument);
-void StartMissionTask(void *argument);
-void StartTelemetryTask(void *argument);
+void StartDefaultTask(void *argument);
+extern void Task_TelemetryFn(void *argument);
+extern void Task_TelecmdFn(void *argument);
+extern void Task_ControlFn(void *argument);
+extern void Task_CoreFn(void *argument);
+extern void Task_LogFn(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -104,7 +115,7 @@ void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
   */
 void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN Init */
-
+  handles = FloatSat_GetHandles();
   /* USER CODE END Init */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -124,22 +135,29 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* creation of SensorTask */
-  SensorTaskHandle = osThreadNew(StartSensorTask, NULL, &SensorTask_attributes);
+  /* creation of defaultTask */
+  defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
 
-  /* creation of ControlTask */
-  ControlTaskHandle = osThreadNew(StartControlTask, NULL, &ControlTask_attributes);
+  /* creation of Task_Telemetry */
+  Task_TelemetryHandle = osThreadNew(Task_TelemetryFn, (void*) handles->telemetry_handle, &Task_Telemetry_attributes);
 
-  /* creation of SupervisorTask */
-  SupervisorTaskHandle = osThreadNew(StartSupervisorTask, NULL, &SupervisorTask_attributes);
+  /* creation of Task_Telecmd */
+  Task_TelecmdHandle = osThreadNew(Task_TelecmdFn, (void*) handles->cmd_manager_handle, &Task_Telecmd_attributes);
 
-  /* creation of MissionTask */
-  MissionTaskHandle = osThreadNew(StartMissionTask, NULL, &MissionTask_attributes);
+  /* creation of Task_Control */
+  Task_ControlHandle = osThreadNew(Task_ControlFn, (void*) handles->control_handle, &Task_Control_attributes);
 
-  /* creation of TelemetryTask */
-  TelemetryTaskHandle = osThreadNew(StartTelemetryTask, NULL, &TelemetryTask_attributes);
+  /* creation of Task_Core */
+  Task_CoreHandle = osThreadNew(Task_CoreFn, (void*) handles->core_handle, &Task_Core_attributes);
+
+  /* creation of Task_Log */
+  Task_LogHandle = osThreadNew(Task_LogFn, (void*) handles->telemetry_handle, &Task_Log_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
+
+
+
+
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
 
@@ -149,94 +167,22 @@ void MX_FREERTOS_Init(void) {
 
 }
 
-/* USER CODE BEGIN Header_StartSensorTask */
+/* USER CODE BEGIN Header_StartDefaultTask */
 /**
-  * @brief  Function implementing the SensorTask thread.
+  * @brief  Function implementing the defaultTask thread.
   * @param  argument: Not used
   * @retval None
   */
-/* USER CODE END Header_StartSensorTask */
-__weak void StartSensorTask(void *argument)
+/* USER CODE END Header_StartDefaultTask */
+void StartDefaultTask(void *argument)
 {
-  /* USER CODE BEGIN StartSensorTask */
+  /* USER CODE BEGIN StartDefaultTask */
   /* Infinite loop */
   for(;;)
   {
     osDelay(1);
   }
-  /* USER CODE END StartSensorTask */
-}
-
-/* USER CODE BEGIN Header_StartControlTask */
-/**
-* @brief Function implementing the ControlTask thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartControlTask */
-__weak void StartControlTask(void *argument)
-{
-  /* USER CODE BEGIN StartControlTask */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END StartControlTask */
-}
-
-/* USER CODE BEGIN Header_StartSupervisorTask */
-/**
-* @brief Function implementing the SupervisorTask thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartSupervisorTask */
-__weak void StartSupervisorTask(void *argument)
-{
-  /* USER CODE BEGIN StartSupervisorTask */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END StartSupervisorTask */
-}
-
-/* USER CODE BEGIN Header_StartMissionTask */
-/**
-* @brief Function implementing the MissionTask thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartMissionTask */
-__weak void StartMissionTask(void *argument)
-{
-  /* USER CODE BEGIN StartMissionTask */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END StartMissionTask */
-}
-
-/* USER CODE BEGIN Header_StartTelemetryTask */
-/**
-* @brief Function implementing the TelemetryTask thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartTelemetryTask */
-__weak void StartTelemetryTask(void *argument)
-{
-  /* USER CODE BEGIN StartTelemetryTask */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  /* USER CODE END StartTelemetryTask */
+  /* USER CODE END StartDefaultTask */
 }
 
 /* Private application code --------------------------------------------------*/

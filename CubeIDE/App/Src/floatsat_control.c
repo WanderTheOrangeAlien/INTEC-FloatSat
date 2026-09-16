@@ -1,9 +1,13 @@
 #include "floatsat_control.h"
 
-void control_task(void *args)
+void Task_ControlFn(void *args)
 {
-    floatsat_control_handle_t *handle =  (floatsat_control_handle_t*)args;
+    control_handle_t *handle =  (control_handle_t*)args;
     IMU_data_t imu_data = {0};
+
+    handle->task_handle = xTaskGetCurrentTaskHandle();
+
+    TickType_t last_wake_time = xTaskGetTickCount();
 
     while(1){
 
@@ -12,36 +16,46 @@ void control_task(void *args)
 
         Madgwick_Update(handle->madgwick, &imu_data); // Estimate orientation
 
-        #warning Pending implementation of Quaternion to Vec3 conversion for orientation data
-        portENTER_CRITICAL();
-        *(handle->g_orientation) = (Vec3_t){0};
-        portEXIT_CRITICAL();
-
-        Control_Update(handle);
-
+        Control_Update(handle); 
         
-        xTaskNotify(handle->telemetry_task_handle, 0U, eNoAction);
+        #warning Pending implementation of Quaternion to Vec3 conversion for orientation data
+        telemetry_packet_fast_t packet = {
+            .orientation    = (Vec3_t) {
+                .x = handle->madgwick->SEq.b,
+                .y = handle->madgwick->SEq.c,
+                .z = handle->madgwick->SEq.d,
+            },
+            .rw_speed       = 0.0f
+        };
+
+        Telemetry_AddFast(handle->telemetry_handle, &packet);
+        xTaskNotify(handle->telemetry_handle->task_handle, 0U, eNoAction);
+        vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(CONTROL_LOOP_PERIOD_MS));
 
     }
 
 }
 
-floatsat_err_t Control_Init(floatsat_control_handle_t *handle)
+floatsat_err_t Control_Init(control_handle_t *handle)
 {
     if(!handle){
         return ERR_INVALID_ARG;
     }
 
-    if(!handle->g_orientation || !handle->g_target_angle){
+    if(!handle->telemetry_handle || !handle->imu || !handle->madgwick || !handle->g_control_config){
         return ERR_INVALID_ARG;
     }
+
+    // if(!handle->g_orientation || !handle->g_target_angle){
+    //     return ERR_INVALID_ARG;
+    // }
 
 
 
     return ERR_OK;
 }
 
-floatsat_err_t Control_Update(floatsat_control_handle_t *handle)
+floatsat_err_t Control_Update(control_handle_t *handle)
 {
     if(!handle){
         return ERR_INVALID_ARG;
