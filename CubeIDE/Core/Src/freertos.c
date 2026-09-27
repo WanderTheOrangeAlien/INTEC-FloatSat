@@ -63,7 +63,7 @@ osThreadId_t Task_TelemetryHandle;
 const osThreadAttr_t Task_Telemetry_attributes = {
   .name = "Task_Telemetry",
   .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
+  .priority = (osPriority_t) osPriorityNormal3,
 };
 /* Definitions for Task_Telecmd */
 osThreadId_t Task_TelecmdHandle;
@@ -77,7 +77,7 @@ osThreadId_t Task_ControlHandle;
 const osThreadAttr_t Task_Control_attributes = {
   .name = "Task_Control",
   .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
+  .priority = (osPriority_t) osPriorityNormal3,
 };
 /* Definitions for Task_Core */
 osThreadId_t Task_CoreHandle;

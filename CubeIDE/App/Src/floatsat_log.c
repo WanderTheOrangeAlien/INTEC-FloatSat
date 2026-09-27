@@ -44,7 +44,7 @@ void Log(const char *format, ...)
     if(ret != 0){
         // TODO: Raise Log buffer full error
     }
-
+    va_end(args);
 }
 
 
@@ -90,6 +90,7 @@ int Log_PopNextMsg(uint8_t *buffer, size_t *out_msg_size)
         Log_AddErrorCount();
         return ret;
     }
+    return 0;
 }
 
 static void Log_AddErrorCount()

@@ -10,7 +10,6 @@ static floatsat_err_t Telemetry_AddToRegistry(telemetry_handle_t *handle);
 
 
 
-
 // Global array of handle pointers so that HAL interrup callbacks can get
 // the handles from the UART instance
 static telemetry_handle_t *telemetry_handle_registry[FLOATSAT_UART_NUM] = {0};
@@ -133,7 +132,6 @@ static floatsat_err_t Telemetry_SendCurrentPacket(telemetry_handle_t *handle)
         LOGE(LOG_TAG, "Error in transmission. Status: %d", status);
         return ERR_UART_TX_FAIL;
     }
-
 
     return ERR_OK;
 }

@@ -3,8 +3,9 @@
 
 #include <stdint.h>
 
+#ifdef TEST
 uint32_t HAL_GetTick(void);
-
+#endif
 
 
 

@@ -42,7 +42,8 @@ floatsat_err_t Control_Init(control_handle_t *handle)
         return ERR_INVALID_ARG;
     }
 
-    if(!handle->telemetry_handle || !handle->imu || !handle->madgwick || !handle->g_control_config){
+    if(!handle->telemetry_handle || !handle->imu || !handle->madgwick 
+        || !handle->g_control_config || !handle->motor){
         return ERR_INVALID_ARG;
     }
 

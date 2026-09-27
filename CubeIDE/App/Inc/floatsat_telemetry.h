@@ -40,6 +40,8 @@ typedef struct telemetry_packet_fast_t {
     float rw_speed;
 }telemetry_packet_fast_t;
 
+
+
 typedef struct telemetry_packet_slow_t {
     float temp;
     float v_batt;
@@ -57,7 +59,7 @@ typedef struct __attribute__((packed)) telemetry_packet_t {
 
 }telemetry_packet_t;
 
-typedef struct info_packet_header_t {
+typedef struct __attribute__((packed)) info_packet_header_t {
     uint8_t type;                // To tell apart from telemetry packets
     timestamp_t timestamp;
     uint8_t nchunks;

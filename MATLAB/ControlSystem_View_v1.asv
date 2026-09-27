@@ -1,0 +1,15 @@
+%% Init
+close(findall(0, 'type', 'figure'))
+
+
+window = uifigure("Position",[50 75 1500 900]);
+main_ax = uiaxes(window,"Position",[20 20 1200 800])
+
+
+
+
+
+
+
+
+%% GUI

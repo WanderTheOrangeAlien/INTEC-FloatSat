@@ -69,6 +69,8 @@ static floatsat_core_t core_handle = {
     .g_control_config = &g_control_config,
 };
 
+/* -------------- Motor -------------- */
+static motor_handle_t motor_handle = {0};
 
 /* -------------- Control -------------- */
 static control_handle_t control_handle = {
@@ -79,6 +81,8 @@ static control_handle_t control_handle = {
 };
 
 
+
+
 /* -------------- All handles struct -------------- */
 floatsat_handles_t floatsat_handles = {
     .cmd_manager_handle     =   &cmd_manager,
@@ -87,7 +91,7 @@ floatsat_handles_t floatsat_handles = {
     .madgwick_filter        =   &madgwick_filter
 };
 
-floatsat_err_t FloatSat_Init(const floatsat_periph_t *periph)
+floatsat_err_t FloatSat_Init(const floatsat_periph_t *periph, floatsat_callbacks_t *out_callbacks)
 {
     if(!periph){
         return ERR_INVALID_ARG;
@@ -112,6 +116,14 @@ floatsat_err_t FloatSat_Init(const floatsat_periph_t *periph)
     GOTO_ON_ERR_LOG(Madgwick_Init(&madgwick_filter),err ,ret,
         LOG_TAG, "Errorr initializing Madgwick filter. Error code: 0x%04x",ret);
 
+    /* ----------------------------- Motor ----------------------------- */
+    motor_handle.pwm_timer = periph->motor_pwm_timer;
+    motor_handle.encoder_timer = periph->encoder_timer;
+    motor_handle.encoder_sampling_timer = periph->encoder_sampling_timer;
+    GOTO_ON_ERR_LOG(Motor_Init(&motor_handle),err ,ret,
+        LOG_TAG, "Errorr initializing motor controller. Error code: 0x%04x",ret);
+
+
     /* ----------------------------- Control ----------------------------- */
     GOTO_ON_ERR_LOG(Control_Init(&control_handle), err, ret,
         LOG_TAG, "Error initializing control. Error code: 0x%04x", ret);
@@ -132,6 +144,11 @@ floatsat_err_t FloatSat_Init(const floatsat_periph_t *periph)
         LOG_TAG, "Error initializing Supervisor (aka Core). Error code: 0x%04x", ret);
 
 
+    // Get the callbacks from each module
+    
+    /* ----------------------------- Motor ----------------------------- */
+    out_callbacks->encoder_sample_cb = Motor_Cb_EncoderSampler;
+    
 
     return ERR_OK;
 

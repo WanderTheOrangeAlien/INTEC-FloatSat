@@ -71,7 +71,8 @@ STATIC INLINE bool LSM9DS1_IsValidReg(uint8_t reg, uint8_t dev);
 
 /* ====================== Static variables and constants ======================= */
 static const char *LOG_TAG = "IMU";
-static const uint8_t known_addresses[] = {};
+static const uint8_t known_addresses[] = {0x6A, 0x6B, 0x1E, 0x1C};
+static uint8_t n_known_addresses = (uint8_t)sizeof(known_addresses);
 
 // Accelerometer conversion factors mg/LSB
 static const float ACC_CONV_FACTORS[] = {
@@ -357,7 +358,8 @@ static floatsat_err_t IMU_FindDevices(IMU_handle_t *handle)
 
 
     HAL_StatusTypeDef status;
-    for (uint8_t  i = 0; i < sizeof(known_addresses); i++)
+    volatile uint8_t n = n_known_addresses;
+    for (uint8_t  i = 0; i < n; i++)
     {
         // Probe device
         status = HAL_I2C_IsDeviceReady(handle->i2c_handle, known_addresses[i] << 1,

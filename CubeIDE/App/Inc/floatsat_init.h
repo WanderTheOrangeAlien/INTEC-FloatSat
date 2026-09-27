@@ -11,14 +11,23 @@
 #include "floatsat_telemetry.h"
 #include "floatsat_control.h"
 #include "floatsat_core.h"
+#include "floatsat_motor_controller.h"
 
 // Structure to enclose all peripheral handles. This is required to cleanly
 // pass all the handles from main.c to floatsat_init.c
 typedef struct floatsat_periph_t {
     I2C_HandleTypeDef       *imu_i2c;
     UART_HandleTypeDef      *main_uart;
+    TIM_HandleTypeDef       *motor_pwm_timer;
+    TIM_HandleTypeDef       *encoder_timer;
+    TIM_HandleTypeDef       *encoder_sampling_timer;
+
 
 }floatsat_periph_t;
+
+typedef struct floatsat_callbacks_t {
+    void        (*encoder_sample_cb)(TIM_HandleTypeDef *tim);
+}floatsat_callbacks_t;
 
 // Structure to group all task handles. This is required to cleanly pass all 
 /// handles from main.c to floatsat_init.c
@@ -38,7 +47,7 @@ typedef struct floatsat_handles_t {
 }floatsat_handles_t;
 
 
-floatsat_err_t FloatSat_Init(const floatsat_periph_t *peripherals);
+floatsat_err_t FloatSat_Init(const floatsat_periph_t *peripherals, floatsat_callbacks_t *out_callbacks);
 const floatsat_handles_t*  FloatSat_GetHandles(void);
 
 

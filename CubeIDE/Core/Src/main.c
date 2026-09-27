@@ -61,6 +61,8 @@
 
 /* Private variables ---------------------------------------------------------*/
 
+static floatsat_callbacks_t callbacks = {0};
+
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -122,14 +124,18 @@ int main(void)
   MX_TIM3_Init();
   MX_USART1_UART_Init();
   MX_TIM2_Init();
+  MX_TIM12_Init();
   /* USER CODE BEGIN 2 */
 
   floatsat_periph_t peripherals = {
-    .imu_i2c    =   &IMU_I2C,
-    .main_uart  =   &MAIN_UART
+    .imu_i2c                  =   &IMU_I2C,
+    .main_uart                =   &MAIN_UART,
+    .motor_pwm_timer          =   &MOTOR_PWM_TIM,
+    .encoder_timer            =   &MOTOR_ENCODER_TIM,
+    .encoder_sampling_timer   =   &ENCODER_SAMPLER_TIM
   };
 
-  FloatSat_Init(&peripherals);
+  FloatSat_Init(&peripherals, &callbacks);
 
   /* USER CODE END 2 */
 
@@ -156,13 +162,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-
-    /*
-     * Espacio reservado para código dentro del bucle de seguridad.
-     *
-     * No es recomendable colocar aquí lógica normal de la aplicación,
-     * porque no se ejecutará mientras el scheduler funcione correctamente.
-     */
 
   }
 
@@ -236,14 +235,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
 
-  /*
-   * Espacio reservado para código que deba ejecutarse antes
-   * de la lógica generada.
-   *
-   * Este callback se ejecuta en contexto de interrupción.
-   * No deben utilizarse aquí funciones bloqueantes como osDelay().
-   */
-
   /* USER CODE END Callback 0 */
   if (htim->Instance == TIM6)
   {
@@ -253,6 +244,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
   if(htim == &MICROSEC_TIMER){
     Util_IncTimeUs();
+  }
+
+  if(htim == &ENCODER_SAMPLER_TIM && callbacks.encoder_sample_cb){
+    callbacks.encoder_sample_cb();
   }
 
   /* USER CODE END Callback 1 */
