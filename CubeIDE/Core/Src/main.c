@@ -90,12 +90,9 @@ int main(void)
 
   /* USER CODE BEGIN 1 */
 
-  /*
-   * Espacio reservado para variables locales o instrucciones que deban
-   * ejecutarse antes de HAL_Init().
-   *
-   * En esta etapa todavía no se han inicializado los periféricos.
-   */
+ 
+  // TODO: Does the MCU have a FPU so we can handle floating point thru hardware? 
+  // Is it enabled?
 
   /* USER CODE END 1 */
 
@@ -135,7 +132,11 @@ int main(void)
     .encoder_sampling_timer   =   &ENCODER_SAMPLER_TIM
   };
 
-  FloatSat_Init(&peripherals, &callbacks);
+  const mx_user_constants_t user_constants = {
+    .encoder_sampling_period_ms = ENCODER_SAMPLE_PERIOD_MS,
+  };
+
+  FloatSat_Init(&peripherals, &user_constants, &callbacks);
 
   /* USER CODE END 2 */
 
@@ -247,7 +248,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   }
 
   if(htim == &ENCODER_SAMPLER_TIM && callbacks.encoder_sample_cb){
-    callbacks.encoder_sample_cb();
+    callbacks.encoder_sample_cb(htim);
   }
 
   /* USER CODE END Callback 1 */

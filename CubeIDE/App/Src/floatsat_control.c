@@ -1,5 +1,8 @@
 #include "floatsat_control.h"
 
+static const Vec3_t forward_vec = {1,0,0}; // Here we assume that the north corresponds to the X axis. 
+                                           // TODO: Check the IMU orientation to confirm this 
+
 void Task_ControlFn(void *args)
 {
     control_handle_t *handle =  (control_handle_t*)args;
@@ -13,23 +16,19 @@ void Task_ControlFn(void *args)
 
         // TODO: Implement Mutex for the I2C peripheral
         IMU_ReadData(handle->imu, &imu_data); // Take IMU measurements
-
         Madgwick_Update(handle->madgwick, &imu_data); // Estimate orientation
-
         Control_Update(handle); 
         
-        #warning Pending implementation of Quaternion to Vec3 conversion for orientation data
+
+        Vec3_t orientation = Vec3_Rotate(&forward_vec, &handle->madgwick->SEq);
         telemetry_packet_fast_t packet = {
-            .orientation    = (Vec3_t) {
-                .x = handle->madgwick->SEq.b,
-                .y = handle->madgwick->SEq.c,
-                .z = handle->madgwick->SEq.d,
-            },
-            .rw_speed       = 0.0f
+            .orientation = orientation,
+            .rw_speed = handle->motor->current_speed
         };
 
         Telemetry_AddFast(handle->telemetry_handle, &packet);
         xTaskNotify(handle->telemetry_handle->task_handle, 0U, eNoAction);
+
         vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(CONTROL_LOOP_PERIOD_MS));
 
     }
@@ -56,6 +55,9 @@ floatsat_err_t Control_Init(control_handle_t *handle)
     return ERR_OK;
 }
 
+/// @brief Uodate the control output based on the previously sampled state
+/// @param handle 
+/// @return 
 floatsat_err_t Control_Update(control_handle_t *handle)
 {
     if(!handle){

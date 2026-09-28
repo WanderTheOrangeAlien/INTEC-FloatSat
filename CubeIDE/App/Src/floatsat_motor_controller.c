@@ -116,37 +116,6 @@ static floatsat_err_t Motor_AddTimerToRegistry(motor_handle_t *handle, TIM_Handl
     }
 }
 
-void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
-{
-    int index = Util_TIM2Index(htim->Instance);
-    if(index < 0){
-        LOGE(LOG_TAG, "HOW?");
-        return;
-    }
-    motor_handle_t *handle = timer_ownership_registry[index];
-    if(!handle){
-        LOGE(LOG_TAG,"Timer Capture callback invoked by an timer not owned by a motor handle");
-        return;
-    }
-
-    if(htim != handle->pwm_timer){
-        return;
-    }
-
-    // TODO: THIS IS WRONG
-
-    // Encoder calculations
-    uint32_t tick = HAL_GetTick();
-    uint32_t delta_t = tick - handle->encoder_last_update_ms;
-    handle->encoder_last_update_ms = tick; 
-
-    // uint8_t dir = 
-
-    // TODO: Do we have to divide by 4?
-    handle->current_speed =  (1000.0f) / (delta_t * MOTOR_CPR); 
-
-}
-
 void Motor_Cb_EncoderSampler(TIM_HandleTypeDef *tim)
 {
     int index = Util_TIM2Index(tim->Instance);
@@ -161,11 +130,12 @@ void Motor_Cb_EncoderSampler(TIM_HandleTypeDef *tim)
     }
 
     uint16_t count =__HAL_TIM_GET_COUNTER(tim);
-    // This casting handles the underflow/overflow
+    // This casting handles the underflow/overflow. Unit: counts
     int16_t delta = (int16_t)(count - handle->last_encoder_count); 
     
-    handle->current_speed = delta / 
+    // rev/s = (counts / (counts/rev)) / ms * (ms/s)
+    handle->current_speed = ((float)delta/MOTOR_CPR) / handle->encoder_sampling_period_ms * 1000U;
 
-    handle->last_encoder_count = count;    
+    handle->last_encoder_count = count;  
 
 }

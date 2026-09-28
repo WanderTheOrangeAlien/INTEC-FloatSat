@@ -32,7 +32,7 @@ We need to perform the following activities
 
 - A library for measuring the execution time of tasks DONE?
 
-- Implement library for reaction wheel control
+- Implement library for reaction wheel control      DONE
 - Unit tests for RW control
   
 - Implement Madwick filter                          DONE

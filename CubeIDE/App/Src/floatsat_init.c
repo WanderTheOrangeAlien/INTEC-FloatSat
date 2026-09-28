@@ -91,7 +91,9 @@ floatsat_handles_t floatsat_handles = {
     .madgwick_filter        =   &madgwick_filter
 };
 
-floatsat_err_t FloatSat_Init(const floatsat_periph_t *periph, floatsat_callbacks_t *out_callbacks)
+floatsat_err_t FloatSat_Init(const floatsat_periph_t *periph, 
+                             const mx_user_constants_t *constants, 
+                             floatsat_callbacks_t *out_callbacks)
 {
     if(!periph){
         return ERR_INVALID_ARG;
@@ -103,7 +105,7 @@ floatsat_err_t FloatSat_Init(const floatsat_periph_t *periph, floatsat_callbacks
     
 
 
-    // Assign the peripheral to each corresponding handle and then call each init function
+    // Assign the peripheral and user config to each corresponding handle and then call each init function
     
     /* ------------------------------ IMU ------------------------------ */
     IMU_handle.i2c_handle = periph->imu_i2c;
@@ -117,9 +119,10 @@ floatsat_err_t FloatSat_Init(const floatsat_periph_t *periph, floatsat_callbacks
         LOG_TAG, "Errorr initializing Madgwick filter. Error code: 0x%04x",ret);
 
     /* ----------------------------- Motor ----------------------------- */
-    motor_handle.pwm_timer = periph->motor_pwm_timer;
-    motor_handle.encoder_timer = periph->encoder_timer;
-    motor_handle.encoder_sampling_timer = periph->encoder_sampling_timer;
+    motor_handle.pwm_timer                  = periph->motor_pwm_timer;
+    motor_handle.encoder_timer              = periph->encoder_timer;
+    motor_handle.encoder_sampling_timer     = periph->encoder_sampling_timer;
+    motor_handle.encoder_sampling_period_ms = constants->encoder_sampling_period_ms;
     GOTO_ON_ERR_LOG(Motor_Init(&motor_handle),err ,ret,
         LOG_TAG, "Errorr initializing motor controller. Error code: 0x%04x",ret);
 

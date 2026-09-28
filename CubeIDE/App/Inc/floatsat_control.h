@@ -8,6 +8,7 @@
 #include "madgwick_filter.h"
 #include "floatsat_telemetry.h"
 #include "floatsat_motor_controller.h"
+#include "vec_math.h"
 
 #define CONTROL_LOOP_PERIOD_MS      10
 
