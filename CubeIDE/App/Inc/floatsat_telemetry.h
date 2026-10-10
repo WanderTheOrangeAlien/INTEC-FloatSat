@@ -84,7 +84,7 @@ typedef struct telemetry_handle_t {
     TaskHandle_t task_handle;
 
     volatile uint8_t packet_type_mask;    // Bit mask indicating which types of packets must be sent.
-    volatile telemetry_packet_t *current_packet;
+    volatile telemetry_packet_t current_packet;
     volatile bool tx_busy;
 
     uint8_t info_state;                 // State for the info transmission state machine

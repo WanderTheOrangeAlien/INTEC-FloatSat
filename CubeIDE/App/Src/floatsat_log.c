@@ -1,6 +1,7 @@
 #include "floatsat_log.h"
 #include <string.h>
 
+
 static int ringbuff_push(ringbuff_t *ringbuff, uint8_t *data, size_t data_len);
 static int ringbuff_pop(ringbuff_t *ringbuff, uint8_t *data, size_t data_len);
 static void Log_AddErrorCount();
@@ -8,7 +9,9 @@ static void Log_AddErrorCount();
 static char log_buffer[LOG_BUFFER_SIZE] = {0};
 static char temp_buffer[LOG_MAX_MSG_SIZE] = {0};
 
-static uint32_t messages_dropped = 0U; 
+static uint32_t messages_dropped = 0U;
+static uint32_t n_init_msg = 0U; 
+static TaskHandle_t logger_task_handle = NULL;
 
 static ringbuff_t ringbuff = {
     .buffer     = (uint8_t*)log_buffer,
@@ -44,7 +47,24 @@ void Log(const char *format, ...)
     if(ret != 0){
         // TODO: Raise Log buffer full error
     }
+    
     va_end(args);
+    if(logger_task_handle != NULL){
+
+        if(n_init_msg){
+            // Set the amount of messages pending that were created during init
+            xTaskNotify(logger_task_handle,n_init_msg,eSetValueWithOverwrite);
+            n_init_msg = 0U;
+        }else{
+            // Increment pending the amount of pending messages
+            xTaskNotify(logger_task_handle, 1U, eIncrement);
+        }
+
+    }else{
+        // Logging was called before Task initialization. Increment the amount of init msg
+        n_init_msg++;
+
+    }
 }
 
 
@@ -93,6 +113,11 @@ int Log_PopNextMsg(uint8_t *buffer, size_t *out_msg_size)
     return 0;
 }
 
+void Log_SetLoggerTaskHandle(TaskHandle_t task_handle)
+{
+    logger_task_handle = task_handle;
+}
+
 static void Log_AddErrorCount()
 {
     // If an error occurs when logging, add to the counter
@@ -107,6 +132,7 @@ static int ringbuff_push(ringbuff_t *ringbuff, uint8_t *data, size_t data_len)
         return -1;
     }
 
+    // Available space for the ringbuffer to grow
     int space = 0;
     if(ringbuff->head < ringbuff->tail){
         // The buffer has wrapped around
@@ -147,16 +173,16 @@ static int ringbuff_pop(ringbuff_t *ringbuff, uint8_t *data, size_t data_len)
         return -1;
     }
 
-    // Check for available space
-    int space = 0;
+    // Amount of bytes that the buffer currently holds
+    int buff_len = 0;
     if(ringbuff->head < ringbuff->tail){
         // The buffer has wrapped around
-        space = ringbuff->max_len - (ringbuff->tail - ringbuff->head);
+        buff_len = ringbuff->max_len - (ringbuff->tail - ringbuff->head);
     }else{
-        space = ringbuff->head - ringbuff->tail;
+        buff_len = ringbuff->head - ringbuff->tail;
     }
 
-    if(space < data_len){
+    if(buff_len < data_len){
         return -1;
     }
 

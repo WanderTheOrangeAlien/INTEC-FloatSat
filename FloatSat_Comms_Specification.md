@@ -72,13 +72,14 @@ slow packets structures
 |----------	|--------	                  |------	|----------             |
 | type 	    | uint8_t                   | 1   	|                       |
 | timestamp | uint64_t                  | 8    	| ms since powered on   |
-| fast      | telemetry_packet_fast_t   | 16    |                       |
+| fast      | telemetry_packet_fast_t   | 25    |                       |
 | slow      | telemetry_packet_slow_t   | TBD   |                       |   
 
 
 ### Fast telemetry (`telemetry_packet_fast_t`)
 | Name     	| Type   	| Size 	| Notes                 |
 |----------	|--------	|------	|----------             |
+| ID        | uint8_t | 1     |                       |
 | Attitude 	| Vec3_t 	| 12   	|                       |
 | RW_Speed 	| float  	| 4    	| Reaction wheel speed  |
 
@@ -118,10 +119,11 @@ The role of the Telemetry Task is only to transmit data through UART, it does
 not create or queue data by its own. Data is instead queued into the 
 transmission buffer by other taks, through functions exposed by the telemetry 
 module. The Control task inserts Fast Telemetry, while the Supervisor Task 
-inserts Slow Telemetry and Info packets.  
+inserts Slow Telemetry and Info packets. The Logger inserts Info 
+Packets that contian log messages if its log buffer is not empty.
 
-Slow Telemetry is queued at larger intervals (To be defined) and the Info packets
-are only queued after receiving an info request command (for example, `photo -i`)
+Slow Telemetry is queued at larger intervals (To be defined) and the Info Packets
+are asynchronous. 
 
 The data queuing done by the Supervisor has the following logic:  
 - Check if it is time to send slow telemetry

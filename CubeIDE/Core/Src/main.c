@@ -61,9 +61,8 @@
 
 /* Private variables ---------------------------------------------------------*/
 
-static floatsat_callbacks_t callbacks = {0};
-
 /* USER CODE BEGIN PV */
+static floatsat_callbacks_t callbacks = {0};
 
 /* USER CODE END PV */
 
@@ -119,10 +118,13 @@ int main(void)
   MX_I2C1_Init();
   MX_TIM1_Init();
   MX_TIM3_Init();
-  MX_USART1_UART_Init();
   MX_TIM2_Init();
   MX_TIM12_Init();
+  MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
+
+  // From Percepio View 
+  xTraceEnable(TRC_START);
 
   floatsat_periph_t peripherals = {
     .imu_i2c                  =   &IMU_I2C,
@@ -136,7 +138,13 @@ int main(void)
     .encoder_sampling_period_ms = ENCODER_SAMPLE_PERIOD_MS,
   };
 
-  FloatSat_Init(&peripherals, &user_constants, &callbacks);
+  floatsat_err_t ret = FloatSat_Init(&peripherals, &user_constants, &callbacks);
+
+  if(ret != ERR_OK)
+  {
+	  LOGE("MAIN","Failure during initialization!");
+	  Error_Handler();
+  }
 
   /* USER CODE END 2 */
 

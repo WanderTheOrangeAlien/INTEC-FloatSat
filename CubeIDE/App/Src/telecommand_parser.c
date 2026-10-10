@@ -16,9 +16,12 @@ STATIC floatsat_err_t parse_cmd_mission(parser_ctx_t *ctx, floatsat_cmd_t *cmd);
 
 static floatsat_err_t parse_cmd_photo(parser_ctx_t *ctx, floatsat_cmd_t *cmd);
 
+static floatsat_err_t parse_cmd_imu(parser_ctx_t *ctx, floatsat_cmd_t *cmd);
+
 static int cmd_init_control();
 static int cmd_init_mission();
 static int cmd_init_photo();
+static int cmd_init_imu();
 
 static const char *LOG_TAG = "CMD_PARSER";
 
@@ -82,12 +85,23 @@ static struct {
     struct arg_end *end;
 }argtable_photo_reset;
 
-
+/* =========================== imu command =========================== */
+// Format imu read [-g -a -m -r -f]
+static struct {
+    struct arg_rex *subcmd;
+    struct arg_lit *opts_gyro;
+    struct arg_lit *opts_acc;
+    struct arg_lit *opts_mag;
+    struct arg_lit *opts_raw;
+    struct arg_lit *opts_filter;
+    struct arg_end *end;
+}argtable_imu_read;
 
 static const cmd_handler_pair_t cmd_handler_table[] = {
     {"control",     parse_cmd_control},
     {"mission",     parse_cmd_mission},
     {"photo",       parse_cmd_photo},
+    {"imu",         parse_cmd_imu}
 };
 static const size_t cmd_handler_table_len = sizeof(cmd_handler_table) / sizeof(cmd_handler_pair_t);
 
@@ -105,6 +119,7 @@ floatsat_err_t CmdParser_Init(parser_ctx_t *ctx)
     cmd_init_control();
     cmd_init_mission();
     cmd_init_photo();
+    cmd_init_imu();
 
     return ERR_OK;
 }
@@ -196,10 +211,18 @@ static int cmd_init_photo(){
     argtable_photo_reset.subcmd         =   arg_rex1(NULL, NULL, "reset", NULL, ARG_REX_ICASE, "Reset subcommand");
     argtable_photo_reset.end            =   arg_end(CMD_MAX_ERRORS);
 
-
     return 0;
 }
 
+static int cmd_init_imu(void)
+{
+    // Format imu read [-g -a -m -r -f]
+    argtable_imu_read.subcmd            =   arg_rex1(NULL, NULL, "read", NULL, ARG_REX_ICASE, "Read the sensor outputs from the IMU");
+    argtable_imu_read.opts_gyro         =   arg_lit0("g","gyro","Include gyroscope readings");
+    argtable_imu_read.opts_acc          =   arg_lit0("a","acc","Include accelerometer readings");
+    argtable_imu_read.opts_mag          =   arg_lit0("m","mag","Include magnetometer readings");
+    argtable_imu_read.opts_filter       =   arg_lit0("f","filter","Include Madgwick filter estimation");
+}
 
 #pragma endregion
 
@@ -423,6 +446,17 @@ cleanup:
     free(cmd->params);
     cmd->params = NULL;
     return ERR_INVALID_CMD;
+}
+
+/* =========================== imu command =========================== */
+static floatsat_err_t parse_cmd_imu(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
+{
+    if(!ctx || !cmd){
+        return ERR_INVALID_ARG;
+    }
+
+
+    return ERR_OK;
 }
 
 #pragma endregion

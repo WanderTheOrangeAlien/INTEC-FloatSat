@@ -27,7 +27,7 @@ floatsat_err_t Telemetry_Init(telemetry_handle_t *handle)
     }
 
     // TODO: The handle to the task is obtain at the start of the task. Consider removing the guard
-    if(!handle->uart || !handle->task_handle){
+    if(!handle->uart){
         return ERR_INVALID_ARG;
     }
 
@@ -60,9 +60,19 @@ void Task_TelemetryFn(void *args)
 
     handle->task_handle = xTaskGetCurrentTaskHandle();
 
+    uint32_t TRACE_task_run_count = 0U;
+    uint32_t notification_value = 0U;
+
     while(1)
     {
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        notification_value = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+
+        if(TRACE_task_run_count == 1){
+        	LOGI(LOG_TAG,"Telemetry Started!");
+        }
+
+        TRACE_task_run_count++;
 
         // Get start and end times
         handle->task_start_time_us = Util_GetTimeUs();
@@ -78,11 +88,11 @@ void Task_TelemetryFn(void *args)
 
         if(handle->packet_type_mask & PACKET_MASK_SLOW){
             // Fast + Slow telemetry, whole packet
-            handle->current_packet->type = PACKET_TYPE_EXTENDED;
+            handle->current_packet.type = PACKET_TYPE_EXTENDED;
 
         }else{
             // Only fast telemetry, first part of packet
-            handle->current_packet->type = PACKET_TYPE_FAST;
+            handle->current_packet.type = PACKET_TYPE_FAST;
         }
         GOTO_ON_ERR(Telemetry_SendCurrentPacket(handle), err, ret);
         // clear fast and slow flags
@@ -114,24 +124,24 @@ static floatsat_err_t Telemetry_SendCurrentPacket(telemetry_handle_t *handle)
     uint8_t tx_len = 0U;
 
 
-    if(handle->current_packet->type == PACKET_TYPE_FAST){
+    if(handle->current_packet.type == PACKET_TYPE_FAST){
         // Send only the first 2 fields
         tx_len = offsetof(telemetry_packet_t, slow);
-    }else if(handle->current_packet->type == PACKET_TYPE_EXTENDED){
+    }else if(handle->current_packet.type == PACKET_TYPE_EXTENDED){
         tx_len = sizeof(telemetry_packet_t);
     }else{
-        LOGE(LOG_TAG,"Invalid packet type. Type: %d",handle->current_packet->type);
+        LOGE(LOG_TAG,"Invalid packet type. Type: %d",handle->current_packet.type);
         return ERR_INVALID_ARG;
     }
 
     handle->tx_busy = true;
-    status = HAL_UART_Transmit_DMA(handle->uart, (uint8_t*)handle->current_packet, tx_len);
-    while(handle->tx_busy){;}
-
+    status = HAL_UART_Transmit_DMA(handle->uart, (uint8_t*)(&handle->current_packet), tx_len);
     if(status != HAL_OK){
         LOGE(LOG_TAG, "Error in transmission. Status: %d", status);
         return ERR_UART_TX_FAIL;
     }
+    while(handle->tx_busy){;}
+
 
     return ERR_OK;
 }
@@ -157,8 +167,8 @@ floatsat_err_t Telemetry_AddFast(telemetry_handle_t *handle, telemetry_packet_fa
         handle->packet_type_mask |= PACKET_MASK_FAST;
     }
 
-    handle->current_packet->timestamp = HAL_GetTick();
-    handle->current_packet->fast = *packet;
+    handle->current_packet.timestamp = HAL_GetTick();
+    handle->current_packet.fast = *packet;
     taskEXIT_CRITICAL();
 
 
@@ -187,7 +197,7 @@ floatsat_err_t Telemetry_AddSlow(telemetry_handle_t *handle, telemetry_packet_sl
 
     // The slow packet uses the same timestamp as the preceeding fast packet, so 
     // it is not updated
-    handle->current_packet->slow = *packet;
+    handle->current_packet.slow = *packet;
     taskEXIT_CRITICAL();
 
     return ERR_OK;
@@ -366,6 +376,7 @@ static floatsat_err_t Telemetry_AddToRegistry(telemetry_handle_t *handle)
         LOGE(LOG_TAG,"Invalid UART instance");
         return ERR_INVALID_ARG;
     }
+    telemetry_handle_registry[index] = handle;
 
     return ERR_OK;
 }

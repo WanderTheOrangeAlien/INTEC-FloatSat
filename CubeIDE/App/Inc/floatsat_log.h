@@ -2,13 +2,15 @@
 #define INC_FLOATSAT_LOG_H
 
 
-#include "stm32f4xx_hal.h"
 
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdbool.h>
 
+#include "stm32f4xx_hal.h"
 
+#include "FreeRTOS.h"
+#include "task.h"
 
 #define LOG_LEVEL_ERROR     0
 #define LOG_LEVEL_WARNING   1
@@ -63,6 +65,7 @@ void Log(const char *format, ...);
 int Log_PopNextMsg(uint8_t *buffer, size_t *out_msg_size);
 void Log_ResetBuffer();
 const ringbuff_t *Log_GetRingbuff(void);
+void Log_SetLoggerTaskHandle(TaskHandle_t task_handle);
 
 #ifdef USE_PRINTF
 #define LOG(x, ...) printf(x ,...)

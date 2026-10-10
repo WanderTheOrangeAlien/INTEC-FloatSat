@@ -1,7 +1,7 @@
 ../Middlewares/Third_Party/FreeRTOS/Source/tasks.c:581:15:xTaskCreateStatic	6
 ../Middlewares/Third_Party/FreeRTOS/Source/tasks.c:733:13:xTaskCreate	4
 ../Middlewares/Third_Party/FreeRTOS/Source/tasks.c:824:13:prvInitialiseNewTask	7
-../Middlewares/Third_Party/FreeRTOS/Source/tasks.c:1077:13:prvAddNewTaskToReadyList	8
+../Middlewares/Third_Party/FreeRTOS/Source/tasks.c:1077:13:prvAddNewTaskToReadyList	10
 ../Middlewares/Third_Party/FreeRTOS/Source/tasks.c:1162:7:vTaskDelete	7
 ../Middlewares/Third_Party/FreeRTOS/Source/tasks.c:1257:7:vTaskDelayUntil	11
 ../Middlewares/Third_Party/FreeRTOS/Source/tasks.c:1341:7:vTaskDelay	4
@@ -23,7 +23,7 @@
 ../Middlewares/Third_Party/FreeRTOS/Source/tasks.c:2358:7:pcTaskGetName	3
 ../Middlewares/Third_Party/FreeRTOS/Source/tasks.c:2505:14:uxTaskGetSystemState	4
 ../Middlewares/Third_Party/FreeRTOS/Source/tasks.c:2609:12:xTaskCatchUpTicks	2
-../Middlewares/Third_Party/FreeRTOS/Source/tasks.c:2707:12:xTaskIncrementTick	12
+../Middlewares/Third_Party/FreeRTOS/Source/tasks.c:2707:12:xTaskIncrementTick	15
 ../Middlewares/Third_Party/FreeRTOS/Source/tasks.c:2989:6:vTaskSwitchContext	5
 ../Middlewares/Third_Party/FreeRTOS/Source/tasks.c:3064:6:vTaskPlaceOnEventList	2
 ../Middlewares/Third_Party/FreeRTOS/Source/tasks.c:3081:6:vTaskPlaceOnUnorderedEventList	3
@@ -52,8 +52,8 @@
 ../Middlewares/Third_Party/FreeRTOS/Source/tasks.c:4184:7:vTaskPriorityDisinheritAfterTimeout	10
 ../Middlewares/Third_Party/FreeRTOS/Source/tasks.c:4602:12:uxTaskResetEventItemValue	1
 ../Middlewares/Third_Party/FreeRTOS/Source/tasks.c:4618:15:pvTaskIncrementMutexHeldCount	2
-../Middlewares/Third_Party/FreeRTOS/Source/tasks.c:4635:11:ulTaskNotifyTake	5
-../Middlewares/Third_Party/FreeRTOS/Source/tasks.c:4703:13:xTaskNotifyWait	5
+../Middlewares/Third_Party/FreeRTOS/Source/tasks.c:4635:11:ulTaskNotifyTake	6
+../Middlewares/Third_Party/FreeRTOS/Source/tasks.c:4703:13:xTaskNotifyWait	6
 ../Middlewares/Third_Party/FreeRTOS/Source/tasks.c:4783:13:xTaskGenericNotify	14
 ../Middlewares/Third_Party/FreeRTOS/Source/tasks.c:4897:13:xTaskGenericNotifyFromISR	16
 ../Middlewares/Third_Party/FreeRTOS/Source/tasks.c:5026:7:vTaskNotifyGiveFromISR	8

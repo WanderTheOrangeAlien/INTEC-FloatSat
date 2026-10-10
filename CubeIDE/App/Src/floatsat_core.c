@@ -16,14 +16,16 @@ STATIC floatsat_err_t Core_ResetPhotos(floatsat_core_t *handle);
 void Task_CoreFn(void *args)
 {
     floatsat_core_t *handle = (floatsat_core_t*)args;
+    assert(handle);
+
     handle->task_handle = xTaskGetCurrentTaskHandle();
     while(1){
 
         // Check if there is a new command. Do not block
-        if(xQueueReceive(handle->cmd_queue, &handle->current_cmd, 0U)){
+        // TODO: Finish core behaviour. For now we block to ease debugging
+        if(xQueueReceive(handle->cmd_queue, &handle->current_cmd, portMAX_DELAY)){
             Core_HandleCmd(handle, &handle->current_cmd); // TODO: Check error
         }
-
 
         
 
@@ -37,11 +39,11 @@ floatsat_err_t Core_Init(floatsat_core_t *handle)
     }
 
     if(!handle->photo_info_arr || !handle->cmd_queue || !handle->telementry_handle
-        || handle->g_control_config){
+        || !handle->g_control_config){
         return ERR_INVALID_ARG;
     }
 
-
+    return ERR_OK;
 
 }
 

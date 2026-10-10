@@ -6,7 +6,7 @@
 // Scalar multiplication
 Vec3_t Vec_SMult(const Vec3_t *vec, float scalar);
 
-Quaternion_t Vec3_toQuaternion(Vec3_t *vec);
+Quaternion_t Vec3_toQuaternion(const Vec3_t *vec);
 Quaternion_t Quaternion_SMult(const Quaternion_t *q, float s);
 float Quaternion_Norm(const Quaternion_t *q);
 Quaternion_t Quaternion_Normalize(const Quaternion_t *q);

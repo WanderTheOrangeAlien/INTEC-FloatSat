@@ -114,6 +114,7 @@ static floatsat_err_t Motor_AddTimerToRegistry(motor_handle_t *handle, TIM_Handl
         LOGE(LOG_TAG,"Timer %d is already owned",index);
         return ERR_RESOURCE_NOT_AVAILABLE;
     }
+    return ERR_OK;
 }
 
 void Motor_Cb_EncoderSampler(TIM_HandleTypeDef *tim)

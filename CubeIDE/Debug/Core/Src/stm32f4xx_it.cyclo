@@ -4,10 +4,10 @@
 ../Core/Src/stm32f4xx_it.c:205:6:BusFault_Handler	1
 ../Core/Src/stm32f4xx_it.c:229:6:UsageFault_Handler	1
 ../Core/Src/stm32f4xx_it.c:253:6:DebugMon_Handler	1
-../Core/Src/stm32f4xx_it.c:281:6:TIM2_IRQHandler	1
-../Core/Src/stm32f4xx_it.c:295:6:TIM3_IRQHandler	1
-../Core/Src/stm32f4xx_it.c:309:6:USART1_IRQHandler	1
-../Core/Src/stm32f4xx_it.c:323:6:TIM8_BRK_TIM12_IRQHandler	1
-../Core/Src/stm32f4xx_it.c:337:6:TIM6_DAC_IRQHandler	1
-../Core/Src/stm32f4xx_it.c:367:6:DMA2_Stream2_IRQHandler	1
-../Core/Src/stm32f4xx_it.c:381:6:DMA2_Stream7_IRQHandler	1
+../Core/Src/stm32f4xx_it.c:281:6:DMA1_Stream5_IRQHandler	1
+../Core/Src/stm32f4xx_it.c:295:6:DMA1_Stream6_IRQHandler	1
+../Core/Src/stm32f4xx_it.c:309:6:TIM2_IRQHandler	1
+../Core/Src/stm32f4xx_it.c:323:6:TIM3_IRQHandler	1
+../Core/Src/stm32f4xx_it.c:337:6:USART2_IRQHandler	1
+../Core/Src/stm32f4xx_it.c:351:6:TIM8_BRK_TIM12_IRQHandler	1
+../Core/Src/stm32f4xx_it.c:365:6:TIM6_DAC_IRQHandler	1

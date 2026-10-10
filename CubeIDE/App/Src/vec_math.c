@@ -35,7 +35,7 @@ Quaternion_t Quaternion_Normalize(const Quaternion_t *q)
 /// X,Y and Z components are kept the same
 /// @param vec 
 /// @return 
-Quaternion_t Vec3_toQuaternion(Vec3_t *vec)
+Quaternion_t Vec3_toQuaternion(const Vec3_t *vec)
 {
     return (Quaternion_t){
         .a = 0,

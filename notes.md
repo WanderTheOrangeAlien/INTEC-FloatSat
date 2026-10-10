@@ -46,3 +46,20 @@ I suggest using argtable3 for implementing the terminal in the microcontroller
 ## (09-09-26) On UART baudrate
 The max baudrate of the STM32F407 is 5.25 MBit/s @ 16 bit oversampling (default)
 The max baudrate of the ESP32-S3 is 5Mbit/s at the default clock source
+
+# October
+## (10-02-26) The Timer bug
+1. Check peripheral registers. 
+   1. DBG_TIM6_STOP bit in the DBGMCU_APB1_FZ register of the DBGMCU (debug MCU) peripheral
+   2. UIE bit in the TIM6_DIER register
+   3. UIF bit in the TIM6_SR register
+   4. UG bit in the TIM6_EGR register
+   5. TIM6_CNT register for the count
+
+# (10-10-26) Towards safety critical code
+The following compiler flags have been added
+-Wall -Wextra -Wpedantic 
+-Wdouble-promotion 
+-Wswitch-default -Wswitch-enum -Wimplicit-fallthrough 
+-Wuninitialized
+

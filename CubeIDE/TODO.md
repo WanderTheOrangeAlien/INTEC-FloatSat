@@ -25,7 +25,10 @@ We need to perform the following activities
 - Fnish telemetry design (add the info requests)    DONE
   - Unit Test Telemetry
   
-- Supervisor                                        DOING
+- Move telecommand parsing to the ESP32             DOING
+  - Test that the parsign is correct
+
+- Supervisor                                        PAUSED
   - Implement changes in internal state through commands   DONE
   - Implement response to info requests
   -       

@@ -77,10 +77,9 @@ static control_handle_t control_handle = {
     .imu                = &IMU_handle,
     .madgwick           = &madgwick_filter,
     .telemetry_handle   = &telemetry_handle,
+    .motor              = &motor_handle,
     .g_control_config   = &g_control_config
 };
-
-
 
 
 /* -------------- All handles struct -------------- */
@@ -88,9 +87,11 @@ floatsat_handles_t floatsat_handles = {
     .cmd_manager_handle     =   &cmd_manager,
     .control_handle         =   &control_handle,
     .telemetry_handle       =   &telemetry_handle,
-    .madgwick_filter        =   &madgwick_filter
+    .madgwick_filter        =   &madgwick_filter,
+	.core_handle			=  	&core_handle,
 };
 
+// Burn, baby, burn
 floatsat_err_t FloatSat_Init(const floatsat_periph_t *periph, 
                              const mx_user_constants_t *constants, 
                              floatsat_callbacks_t *out_callbacks)
