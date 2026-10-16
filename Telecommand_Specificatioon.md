@@ -1,8 +1,7 @@
 # Telecommand specificatioon
 The floatsat commands will be sent from the ground station as Unix-style 
-console commands. Even though the student uses a graphical user interface (GUI),
-the ground station creates these commands under the hood and sends them to the 
-floatsat  
+console commands (though not POSIX-compliant). A graphical user interface in the 
+ground station will serve as a wrapper around these commands.
 
 The Unix style is adopted becuase its a ubiquitous standard that is familiar to 
 many programmers. 
@@ -10,7 +9,7 @@ many programmers.
 ## About the format
 (Based on the Argtable3 syntax)
 
-The command itself is the first word. All the other text bits are its arguments.
+The command itself is the first word. All the other text corresponds to its arguments.
 Arguments can require a value or not. For example, if the command has an argument 
 for the number of lines to print, we could express it as `--lines=5` or `-l 5`.
 If the argument does not require a value, it is called an option. For example, 
@@ -21,7 +20,7 @@ or short. The long name is prepended by `--`, while the short name is prepended
 by `-`. 
 
 
-`[...]` means that the argument/option is, well, optional.  
+`[...]` means that the argument/option is, optional.  
 `<...>` means a placeholder for a value you have to write yourself.  
 An argument that appears literally, like `add` in `git add`, is called a literal. 
 This represents a subcommand or fixed keyword and is written exactly as typed, without

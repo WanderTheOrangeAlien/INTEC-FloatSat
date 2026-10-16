@@ -69,17 +69,16 @@ slow packets structures
 
 ### Packet (`telemetry_packet_t`)
 | Name     	| Type   	                  | Size 	| Notes                 |
-|----------	|--------	                  |------	|----------             |
+|----------	|--------	                  |------	| ----------             |
 | type 	    | uint8_t                   | 1   	|                       |
 | timestamp | uint64_t                  | 8    	| ms since powered on   |
-| fast      | telemetry_packet_fast_t   | 25    |                       |
+| fast      | telemetry_packet_fast_t   | 16    |                       |
 | slow      | telemetry_packet_slow_t   | TBD   |                       |   
 
 
 ### Fast telemetry (`telemetry_packet_fast_t`)
 | Name     	| Type   	| Size 	| Notes                 |
 |----------	|--------	|------	|----------             |
-| ID        | uint8_t | 1     |                       |
 | Attitude 	| Vec3_t 	| 12   	|                       |
 | RW_Speed 	| float  	| 4    	| Reaction wheel speed  |
 
