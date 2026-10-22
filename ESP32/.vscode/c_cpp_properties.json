@@ -1,0 +1,19 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${default}",
+                "${IDF_PATH}/**"
+            ],
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "linux-clang-x64",
+            "forcedInclude": [
+                "${workspaceFolder}/build/config/sdkconfig.h"
+            ]
+        }
+    ],
+    "version": 4
+}

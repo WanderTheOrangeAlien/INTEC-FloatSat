@@ -105,7 +105,7 @@
 #define LSM9DS1_ACC_ZEN_XL          (1 << 5) // Enable accelerometer Z axis. CTRL_REG5_XL
 
 // Mask for axis enable fields in CTRL_REG5_XL
-#define LSM9DS1_CTRL_REG5_XL_MASK_AXIS_EN (0x03U << 3)
+#define LSM9DS1_CTRL_REG5_XL_MASK_AXIS_EN (0x07U << 3)
 
 
 #define LSM9DS1_MAG_TEMP_COMP_EN    (1 << 7) // Enable temperature compensation for magnetomer.CTRL_REG4

@@ -39,7 +39,7 @@ floatsat_err_t CmdManager_Init(cmd_manager_handle_t *handle)
     GOTO_ON_ERR(CmdParser_Init(handle->parser_ctx), err, ret);
     
     // Start reception
-    GOTO_ON_HAL_ERR(HAL_UART_Receive_DMA(handle->uart, (uint8_t*)handle->dma_buffer, sizeof(floatsat_msg_header_t)),
+    GOTO_ON_HAL_ERR(HAL_UART_Receive_DMA(handle->uart, handle->dma_buffer, sizeof(floatsat_msg_header_t)),
         err, ret);
     return ERR_OK;
 
@@ -48,7 +48,7 @@ err:
     return ret;
 }
 
-
+__attribute__((noreturn))
 void Task_TelecmdFn(void *args)
 {
     cmd_manager_handle_t *handle = (cmd_manager_handle_t*)args;
@@ -62,9 +62,10 @@ void Task_TelecmdFn(void *args)
 
     while(1){
         notification_value = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        UNUSED(notification_value);
 
         // The DMA Interrupt finished copying the recieved message into the handle msg buffer
-        GOTO_ON_ERR(CmdParser_Parse(handle->parser_ctx, (uint8_t*)handle->msg_buffer, handle->xfer_len, &cmd),
+        GOTO_ON_ERR(CmdParser_Parse(handle->parser_ctx, handle->msg_buffer, handle->xfer_len, &cmd),
             err, ret);
 
         // Send the command to the Core
@@ -79,7 +80,7 @@ void Task_TelecmdFn(void *args)
 
 err:
         // Report the error through a telemetry info packet
-
+        (void)0U;
     }
 }
 
@@ -117,7 +118,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
     {
     case MSG_RX_STATE_WAIT_HEADER:{
         floatsat_msg_header_t header = {0};
-        memcpy(&header,(uint8_t*)handle->dma_buffer,sizeof(floatsat_msg_header_t));
+        memcpy(&header,handle->dma_buffer,sizeof(floatsat_msg_header_t));
         
         if(header.sync != CMD_MSG_SYNC){
             LOGE(LOG_TAG,"Invalid Sync word");
@@ -133,7 +134,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
         handle->xfer_len = header.len;
 
         handle->state = MSG_RX_STATE_WAIT_MSG;
-        HAL_UART_Receive_DMA(huart, (uint8_t*)handle->dma_buffer + sizeof(floatsat_msg_header_t), header.len);
+        HAL_UART_Receive_DMA(huart, handle->dma_buffer + sizeof(floatsat_msg_header_t), header.len);
 
         break;
     }        
@@ -142,10 +143,10 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
         // Compute CRC
         #warning "CMD Manager CRC not implemented!"
 
-
+        // TODO: WARNING: What happens if handle->msg_buffer is being used by the parser and the DMA overwrites it?
         if(handle->msg_buffer_empty){
             // Note that the header is overwritten. This is intentional, since the header information was saved in the handle
-            memcpy((uint8_t*)handle->msg_buffer, (uint8_t*)handle->dma_buffer, handle->xfer_len + sizeof(floatsat_msg_header_t));
+            memcpy(handle->msg_buffer, handle->dma_buffer, handle->xfer_len + sizeof(floatsat_msg_header_t));
             handle->msg_buffer_empty = false;
 
             vTaskNotifyGiveFromISR(handle->task_handle, &higher_task_woken);
@@ -156,8 +157,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
         }
 
         handle->state = MSG_RX_STATE_WAIT_HEADER;
-        memset((uint8_t*)handle->dma_buffer, 0, handle->xfer_len); // TODO: This might  not be necesary
-        HAL_UART_Receive_DMA(huart,(uint8_t*)handle->dma_buffer,sizeof(floatsat_msg_header_t));
+        memset(handle->dma_buffer, 0, handle->xfer_len); // TODO: This might  not be necesary
+        HAL_UART_Receive_DMA(huart,handle->dma_buffer,sizeof(floatsat_msg_header_t));
 
 
         if(higher_task_woken == pdTRUE){
@@ -176,8 +177,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
 header_err:
     handle->state = MSG_RX_STATE_WAIT_HEADER;
-    memset((uint8_t*)handle->dma_buffer, 0, sizeof(floatsat_msg_header_t));
-    HAL_UART_Receive_DMA(huart,(uint8_t*)handle->dma_buffer,sizeof(floatsat_msg_header_t));
+    memset(handle->dma_buffer, 0, sizeof(floatsat_msg_header_t));
+    HAL_UART_Receive_DMA(huart,handle->dma_buffer,sizeof(floatsat_msg_header_t));
 
 }
 

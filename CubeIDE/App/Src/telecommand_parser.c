@@ -18,10 +18,10 @@ static floatsat_err_t parse_cmd_photo(parser_ctx_t *ctx, floatsat_cmd_t *cmd);
 
 static floatsat_err_t parse_cmd_imu(parser_ctx_t *ctx, floatsat_cmd_t *cmd);
 
-static int cmd_init_control();
-static int cmd_init_mission();
-static int cmd_init_photo();
-static int cmd_init_imu();
+static int cmd_init_control(void);
+static int cmd_init_mission(void);
+static int cmd_init_photo(void);
+static int cmd_init_imu(void);
 
 static const char *LOG_TAG = "CMD_PARSER";
 
@@ -157,7 +157,7 @@ err:
 /* ================================= CMD Init =============================== */
 /* ========================================================================== */
 
-static int cmd_init_control()
+static int cmd_init_control(void)
 {
     // Format: control -i
     // argtable_control_info.cmd_name      =   arg_rex1(NULL,NULL,"control",NULL,ARG_REX_ICASE,NULL);
@@ -178,7 +178,7 @@ static int cmd_init_control()
     return 0;
 }
 
-static int cmd_init_mission()
+static int cmd_init_mission(void)
 {
     // Format: mission -i
     argtable_mission_info.info          =   arg_lit1("i","info","Show mission information");
@@ -193,7 +193,8 @@ static int cmd_init_mission()
     return 0;
 }
 
-static int cmd_init_photo(){
+static int cmd_init_photo(void)
+{
 
     // Format: photo -i
     argtable_photo_info.info            =   arg_lit1("i","info","Show photo information");
@@ -222,6 +223,8 @@ static int cmd_init_imu(void)
     argtable_imu_read.opts_acc          =   arg_lit0("a","acc","Include accelerometer readings");
     argtable_imu_read.opts_mag          =   arg_lit0("m","mag","Include magnetometer readings");
     argtable_imu_read.opts_filter       =   arg_lit0("f","filter","Include Madgwick filter estimation");
+
+    return 0;
 }
 
 #pragma endregion
@@ -325,7 +328,7 @@ static floatsat_err_t parse_cmd_control(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
 
 STATIC floatsat_err_t parse_control_params(float *params, const char *buffer)
 {
-    char *p = (char*)buffer;
+    const char *p = buffer;
     char *endptr = NULL;
     uint8_t param_idx = 0U;
     float new_param = 0.0f;
@@ -430,7 +433,7 @@ static floatsat_err_t parse_cmd_photo(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
         if(argtable_photo_add.duration->ival[0] <= 0){
             goto cleanup;
         }
-        params->duration = argtable_photo_add.duration->ival[0];
+        params->duration = (uint32_t)argtable_photo_add.duration->ival[0];
 
 
     }else if(!nerrors_arr[2]){
@@ -519,7 +522,7 @@ STATIC floatsat_err_t CmdParser_GetArgs(parser_ctx_t *ctx, uint8_t *msg_body, si
                     }
                     // This is a bit convoluted. Eliminate the left quote with a 
                     /// memmove and the left over byte with a NULL
-                    memmove(p, p + 1, end - p - 1);
+                    memmove(p, p + 1, (size_t)(end - p - 1));
                     *(end - 1) = '\0';
                     p = end;
                     break;

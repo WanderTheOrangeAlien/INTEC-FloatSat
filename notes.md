@@ -59,7 +59,14 @@ The max baudrate of the ESP32-S3 is 5Mbit/s at the default clock source
 # (10-10-26) Towards safety critical code
 The following compiler flags have been added
 -Wall -Wextra -Wpedantic 
--Wdouble-promotion 
--Wswitch-default -Wswitch-enum -Wimplicit-fallthrough 
--Wuninitialized
+-Wconversion -Wsign-conversion -Wdouble-promotion -Wfloat-equal
+-Wswitch-default -Wimplicit-fallthrough
+-Wuninitialized -Wundef
+-Wdangling-pointer -Wshadow -Wcast-qual -Wcast-align
+-Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations
+-Wwrite-strings -Waddress -Wformat
+-Wunreachable-code -Wmissing-noreturn
 
+
+(without newlines for copying)
+-Wconversion -Wsign-conversion -Wdouble-promotion -Wfloat-equal -Wswitch-default -Wimplicit-fallthrough -Wuninitialized -Wundef -Wdangling-pointer -Wshadow -Wcast-qual -Wcast-align -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wwrite-strings -Waddress -Wformat -Wunreachable-code -Wmissing-noreturn 

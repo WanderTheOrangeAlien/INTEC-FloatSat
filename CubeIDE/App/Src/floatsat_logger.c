@@ -1,7 +1,9 @@
 #include "floatsat_telemetry.h"
 
 #include "task.h"
+#include "floatsat_logger.h"
 
+__attribute__((noreturn))
 void Task_LogFn(void *params)
 {
     // Low priority task that sends any pending messages through telemetry info packets
@@ -9,8 +11,7 @@ void Task_LogFn(void *params)
     floatsat_err_t ret = ERR_OK;
 
     Log_SetLoggerTaskHandle(xTaskGetCurrentTaskHandle());
-    const telemetry_handle_t *telemetry_handle = (const telemetry_handle_t*)params;
-    const ringbuff_t *ringbuff = Log_GetRingbuff();
+    telemetry_handle_t *telemetry_handle = (telemetry_handle_t*)params;
     size_t idx = 0U; // Info buffer index
     size_t msg_len = 0U;
     uint32_t n_pending_msg = 0U;
@@ -21,7 +22,7 @@ void Task_LogFn(void *params)
     	n_pending_msg = ulTaskNotifyTake(pdFALSE, portMAX_DELAY);
 
         // Try to acquire the buffer
-        ret = Telemetry_TakeInfoBuffer((telemetry_handle_t*)telemetry_handle, &info_buffer);
+        ret = Telemetry_TakeInfoBuffer(telemetry_handle, &info_buffer);
         if(ret != ERR_OK){
             continue;
         }
@@ -49,7 +50,7 @@ void Task_LogFn(void *params)
 
         }
 
-        ret = Telemetry_GiveInfoBuffer((telemetry_handle_t*)telemetry_handle, &info_buffer);
+        ret = Telemetry_GiveInfoBuffer(telemetry_handle, &info_buffer);
 
     }
 

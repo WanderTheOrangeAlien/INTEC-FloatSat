@@ -117,46 +117,46 @@ floatsat_err_t IMU_Init(IMU_handle_t *handle)
 
     //Enable gyroscope axes
     GOTO_ON_ERR(IMU_ReadReg(handle, LSM9DS1_DEV_AG, LSM9DS1_CTRL_REG4, &reg_val), err, ret);
-    reg_val &= ~LSM9DS1_CTRL_REG4_MASK_AXIS_EN;
-    reg_val |= handle->params->gyro_axes;
+    reg_val &= (uint8_t)~LSM9DS1_CTRL_REG4_MASK_AXIS_EN;
+    reg_val |= (uint8_t)handle->params->gyro_axes;
     GOTO_ON_ERR(IMU_WriteReg(handle, LSM9DS1_DEV_AG, LSM9DS1_CTRL_REG4, &reg_val), err, ret);
 
     // Enable accelerometer axes
     GOTO_ON_ERR(IMU_ReadReg(handle, LSM9DS1_DEV_AG, LSM9DS1_CTRL_REG5_XL, &reg_val), err, ret);
-    reg_val &= ~LSM9DS1_CTRL_REG5_XL_MASK_AXIS_EN;
-    reg_val |= handle->params->acc_axes;
+    reg_val &= (uint8_t)~LSM9DS1_CTRL_REG5_XL_MASK_AXIS_EN;
+    reg_val |= (uint8_t)handle->params->acc_axes;
     GOTO_ON_ERR(IMU_WriteReg(handle,LSM9DS1_DEV_AG,LSM9DS1_CTRL_REG5_XL,&reg_val),err,ret);
 
     // Configure Gyroscope ODR and scale
     GOTO_ON_ERR(IMU_ReadReg(handle, LSM9DS1_DEV_AG, LSM9DS1_CTRL_REG1_G, &reg_val), err, ret);
-    reg_val &= ~(LSM9DS1_CTRL_REG1_MASK_FS | LSM9DS1_CTRL_REG1_MASK_ODR);
-    reg_val |= (handle->params->gyro_odr | handle->params->gyro_scale);
+    reg_val &= (uint8_t)~(LSM9DS1_CTRL_REG1_MASK_FS | LSM9DS1_CTRL_REG1_MASK_ODR);
+    reg_val |= (uint8_t)(handle->params->gyro_odr | handle->params->gyro_scale);
     GOTO_ON_ERR(IMU_WriteReg(handle, LSM9DS1_DEV_AG, LSM9DS1_CTRL_REG1_G, &reg_val), err, ret);
 
     // Configure Accelerometer ODR and scale
     GOTO_ON_ERR(IMU_ReadReg(handle, LSM9DS1_DEV_AG, LSM9DS1_CTRL_REG6_XL, &reg_val), err, ret);
-    reg_val &= ~(LSM9DS1_CTRL_REG6_XL_MASK_FS | LSM9DS1_CTRL_REG6_XL_MASK_ODR);
-    reg_val |= (handle->params->acc_odr | handle->params->acc_scale);
+    reg_val &= (uint8_t)~(LSM9DS1_CTRL_REG6_XL_MASK_FS | LSM9DS1_CTRL_REG6_XL_MASK_ODR);
+    reg_val |= (uint8_t)(handle->params->acc_odr | handle->params->acc_scale);
     GOTO_ON_ERR(IMU_WriteReg(handle, LSM9DS1_DEV_AG, LSM9DS1_CTRL_REG6_XL, &reg_val), err, ret);
 
     /*----------------------------- Magnetometer -----------------------------*/
 
     // Configure ODR, XY axes operational mode and temperature compensation
     GOTO_ON_ERR(IMU_ReadReg(handle, LSM9DS1_DEV_MAG, LSM9DS1_CTRL_REG1_M, &reg_val), err, ret);
-    reg_val &= ~(LSM9DS1_CTRL_REG1_M_MASK_ODR | LSM9DS1_CTRL_REG1_M_MASK_XY_OM | LSM9DS1_MAG_TEMP_COMP_EN);
-    reg_val |= handle->params->mag_odr | handle->params->mag_xy_mode | handle->params->mag_en_temp_comp;
+    reg_val &= (uint8_t)~(LSM9DS1_CTRL_REG1_M_MASK_ODR | LSM9DS1_CTRL_REG1_M_MASK_XY_OM | LSM9DS1_MAG_TEMP_COMP_EN);
+    reg_val |= (uint8_t)handle->params->mag_odr | handle->params->mag_xy_mode | handle->params->mag_en_temp_comp;
     GOTO_ON_ERR(IMU_WriteReg(handle, LSM9DS1_DEV_MAG, LSM9DS1_CTRL_REG1_M, &reg_val), err, ret);
 
     // Configure scale
     GOTO_ON_ERR(IMU_ReadReg(handle, LSM9DS1_DEV_MAG, LSM9DS1_CTRL_REG2_M, &reg_val), err, ret);
-    reg_val &= ~LSM9DS1_CTRL_REG2_M_MASK_FS;
-    reg_val |= handle->params->mag_scale;
+    reg_val &= (uint8_t)~LSM9DS1_CTRL_REG2_M_MASK_FS;
+    reg_val |= (uint8_t)handle->params->mag_scale;
     GOTO_ON_ERR(IMU_WriteReg(handle, LSM9DS1_DEV_MAG, LSM9DS1_CTRL_REG2_M, &reg_val), err, ret);
 
     // Configure magnetometer device operating mode
     GOTO_ON_ERR(IMU_ReadReg(handle, LSM9DS1_DEV_MAG, LSM9DS1_CTRL_REG3_M, &reg_val), err, ret);
-    reg_val &= ~LSM9DS1_CTRL_REG3_M_MASK_MD;
-    reg_val |= handle->params->mag_op_mode;
+    reg_val &= (uint8_t)~LSM9DS1_CTRL_REG3_M_MASK_MD;
+    reg_val |= (uint8_t)handle->params->mag_op_mode;
     GOTO_ON_ERR(IMU_WriteReg(handle, LSM9DS1_DEV_MAG, LSM9DS1_CTRL_REG3_M, &reg_val), err, ret);
 
 
@@ -455,7 +455,7 @@ static floatsat_err_t IMU_ReadRegInc(const IMU_handle_t *handle, uint8_t device,
     // Check if there will be invalid registers in the read sequence
     // TODO: There must be a better way of doing this
     for (size_t i = 0; i < data_len; i++){
-        if(!LSM9DS1_IsValidReg(reg + i, device)){
+        if(!LSM9DS1_IsValidReg(reg + (uint8_t)i, device)){
             return ERR_INVALID_REG;
         }
     }
@@ -509,7 +509,11 @@ __attribute__((unused))
 static floatsat_err_t IMU_WriteRegInc(const IMU_handle_t *handle, uint8_t device,
                                         uint8_t reg, uint8_t *data, uint8_t data_len)
 {
-    
+    UNUSED(handle);
+    UNUSED(device);
+    UNUSED(reg);
+    UNUSED(data);
+    UNUSED(data_len);
     return ERR_OK;
 }
 

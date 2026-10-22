@@ -8,7 +8,7 @@
 void Util_IncTimeUs(void);
 uint64_t Util_GetTimeUs(void);
 
-floatsat_err_t Util_InitTimer();
+// floatsat_err_t Util_InitTimer(void); // Ummm, what was this for? It has no definition
 
 int Util_UART2Index(USART_TypeDef *uart_base);
 int Util_TIM2Index(TIM_TypeDef *tim_base);

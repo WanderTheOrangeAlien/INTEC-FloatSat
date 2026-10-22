@@ -52,7 +52,7 @@ floatsat_err_t Telemetry_Init(telemetry_handle_t *handle)
 
 
 
-
+__attribute__((noreturn))
 void Task_TelemetryFn(void *args)
 {
     telemetry_handle_t *handle = (telemetry_handle_t*)args;
@@ -281,7 +281,7 @@ STATIC floatsat_err_t Telemetry_HandleInfo(telemetry_handle_t *handle)
     switch (handle->info_state)
     {
     case INFO_STATE_START:{
-
+// floatsat_err_t Telemetry_AddToRegistry(telemetry_handle_t *handle) // Why is this here?
         // Create the header
         size_t len = strnlen((char*)handle->info_bufer, TELEMETRY_INFO_BUFFER_SIZE);
         uint8_t last_chunk_size = len % INFO_CHUNK_DATA_SIZE;
@@ -309,6 +309,8 @@ STATIC floatsat_err_t Telemetry_HandleInfo(telemetry_handle_t *handle)
         
         handle->info_state = INFO_STATE_TX;
         // Intended fall through. We want to start sending chunks immediately
+        __attribute__((fallthrough))
+        
     }
 
     case INFO_STATE_TX:{

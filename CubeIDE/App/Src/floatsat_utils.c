@@ -31,7 +31,7 @@ int Util_UART2Index(USART_TypeDef *uart_base)
 
     for (size_t i = 0; i < sizeof(UART_MAP) / sizeof(USART_TypeDef*); i++){
         if(uart_base == UART_MAP[i]){
-            return i;
+            return (int)i;
         }
     }
     
@@ -48,7 +48,7 @@ int Util_TIM2Index(TIM_TypeDef *tim_base)
     for (size_t i = 0; i < sizeof(TIM_MAP) / sizeof(TIM_TypeDef*); i++)
     {
         if(tim_base == TIM_MAP[i]){
-            return i;
+            return (int)i;
         }
     }
 

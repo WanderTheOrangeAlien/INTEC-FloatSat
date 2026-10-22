@@ -151,7 +151,7 @@ void Madgwick_Update(madgwick_filter_t *f, const IMU_data_t *imu)
     f->SEq.c += (SEqDot_omega_3 - (MADGWICK_BETA * SEqHatDot_3)) * MADGWICK_DELTA_T;
     f->SEq.d += (SEqDot_omega_4 - (MADGWICK_BETA * SEqHatDot_4)) * MADGWICK_DELTA_T;
     // normalise quaternion
-    norm = sqrt(f->SEq.a * f->SEq.a + f->SEq.b * f->SEq.b + f->SEq.c * f->SEq.c + f->SEq.d * f->SEq.d);
+    norm = sqrtf(f->SEq.a * f->SEq.a + f->SEq.b * f->SEq.b + f->SEq.c * f->SEq.c + f->SEq.d * f->SEq.d);
     f->SEq.a /= norm;
     f->SEq.b /= norm;
     f->SEq.c /= norm;
@@ -167,7 +167,7 @@ void Madgwick_Update(madgwick_filter_t *f, const IMU_data_t *imu)
     h_y = twom_x * (SEq_2SEq_3 + SEq_1SEq_4) + twom_y * (0.5f - f->SEq.b * f->SEq.b - f->SEq.d * f->SEq.d) + twom_z * (SEq_3SEq_4 - SEq_1SEq_2);
     h_z = twom_x * (SEq_2SEq_4 - SEq_1SEq_3) + twom_y * (SEq_3SEq_4 + SEq_1SEq_2) + twom_z * (0.5f - f->SEq.b * f->SEq.b - f->SEq.c * f->SEq.c);
     // normalise the flux vector to have only components in the x and z
-    f->b.x = sqrt((h_x * h_x) + (h_y * h_y));
+    f->b.x = sqrtf((h_x * h_x) + (h_y * h_y));
     f->b.z = h_z;
 
 }

@@ -12,7 +12,7 @@ STATIC floatsat_err_t Core_ResetPhotos(floatsat_core_t *handle);
 
 
 
-
+__attribute__((noreturn))
 void Task_CoreFn(void *args)
 {
     floatsat_core_t *handle = (floatsat_core_t*)args;

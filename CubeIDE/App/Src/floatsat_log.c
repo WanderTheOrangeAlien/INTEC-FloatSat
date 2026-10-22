@@ -4,7 +4,7 @@
 
 static int ringbuff_push(ringbuff_t *ringbuff, uint8_t *data, size_t data_len);
 static int ringbuff_pop(ringbuff_t *ringbuff, uint8_t *data, size_t data_len);
-static void Log_AddErrorCount();
+static void Log_AddErrorCount(void);
 
 static char log_buffer[LOG_BUFFER_SIZE] = {0};
 static char temp_buffer[LOG_MAX_MSG_SIZE] = {0};
@@ -42,7 +42,7 @@ void Log(const char *format, ...)
     }
     
     // Copy bytes as circular buffer. -1 to leave out the NULL terminator
-    int ret = ringbuff_push(&ringbuff, (uint8_t*)temp_buffer, written);
+    int ret = ringbuff_push(&ringbuff, (uint8_t*)temp_buffer, (size_t)written);
     
     if(ret != 0){
         // TODO: Raise Log buffer full error
@@ -68,7 +68,7 @@ void Log(const char *format, ...)
 }
 
 
-void Log_ResetBuffer()
+void Log_ResetBuffer(void)
 {
     memset(ringbuff.buffer, 0, ringbuff.max_len);
     ringbuff.full = false;
@@ -100,7 +100,7 @@ int Log_PopNextMsg(uint8_t *buffer, size_t *out_msg_size)
         }
         
     }else{
-        *out_msg_size = (size_t)(p - &ringbuff.buffer[ringbuff.tail] + 1U);
+        *out_msg_size = ((size_t)(p - &ringbuff.buffer[ringbuff.tail]) + 1U);
     }
 
 
@@ -189,7 +189,7 @@ static int ringbuff_pop(ringbuff_t *ringbuff, uint8_t *data, size_t data_len)
     int next = ringbuff->tail + data_len;
     if(next > ringbuff->max_len){
         // Wrap around
-        int bytes_to_end = ringbuff->max_len - ringbuff->tail;
+        size_t bytes_to_end = ringbuff->max_len - ringbuff->tail;
         next = next - ringbuff->max_len;    
 
         memcpy(data, &ringbuff->buffer[ringbuff->tail], bytes_to_end);
@@ -197,7 +197,7 @@ static int ringbuff_pop(ringbuff_t *ringbuff, uint8_t *data, size_t data_len)
     }else{
         memcpy(data, &ringbuff->buffer[ringbuff->tail], data_len);
     }
-    ringbuff->tail = next;
+    ringbuff->tail = (size_t)next;
     return 0;
 
     

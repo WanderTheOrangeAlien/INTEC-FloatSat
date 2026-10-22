@@ -35,8 +35,9 @@ typedef struct cmd_manager_handle_t {
 
     parser_ctx_t *parser_ctx;
 
-    volatile uint8_t *dma_buffer;            // Buffer written by the UART DMA
-    volatile uint8_t *msg_buffer;            // Buffer message is copied to at the end of UART RX
+    uint8_t *dma_buffer;                     // Buffer written by the UART DMA, does not need to be volatile because 
+                                             // the ISR runs after all dta is received
+    uint8_t *msg_buffer;                     // Buffer message is copied to at the end of UART RX
 
     volatile uint8_t state;
     volatile uint16_t xfer_len; 
@@ -49,6 +50,8 @@ typedef struct cmd_manager_handle_t {
 }cmd_manager_handle_t;
 
 floatsat_err_t CmdManager_Init(cmd_manager_handle_t *handle);
+void Task_TelecmdFn(void *args);
+
 
 
 #endif

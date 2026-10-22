@@ -56,7 +56,7 @@ typedef enum floatsat_err_t {
 }while(0)
 
 #define GOTO_ON_HAL_ERR(x,goto_label,ret_val) do{ \
-  ret_val = (x);                              \
+  ret_val = (floatsat_err_t)(x);                              \
   ret_val = HAL_ERR_TO_FLOATSAT_ERR(ret_val); \
   if(ret_val != ERR_OK){                      \
     goto goto_label;                          \

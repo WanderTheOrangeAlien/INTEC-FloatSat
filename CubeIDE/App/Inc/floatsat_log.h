@@ -63,7 +63,7 @@ typedef struct ringbuff_t {
 
 void Log(const char *format, ...);
 int Log_PopNextMsg(uint8_t *buffer, size_t *out_msg_size);
-void Log_ResetBuffer();
+void Log_ResetBuffer(void);
 const ringbuff_t *Log_GetRingbuff(void);
 void Log_SetLoggerTaskHandle(TaskHandle_t task_handle);
 

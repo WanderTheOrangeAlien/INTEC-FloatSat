@@ -25,7 +25,7 @@ We need to perform the following activities
 - Fnish telemetry design (add the info requests)    DONE
   - Unit Test Telemetry
   
-- Move telecommand parsing to the ESP32             DOING
+- Move telecommand parsing to the ESP32             PAUSED
   - Test that the parsign is correct
 
 - Supervisor                                        PAUSED
@@ -34,6 +34,8 @@ We need to perform the following activities
   -       
 
 - A library for measuring the execution time of tasks DONE?
+
+- Fix the logger                                    DOING
 
 - Implement library for reaction wheel control      DONE
 - Unit tests for RW control
