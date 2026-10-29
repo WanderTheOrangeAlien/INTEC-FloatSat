@@ -70,3 +70,18 @@ The following compiler flags have been added
 
 (without newlines for copying)
 -Wconversion -Wsign-conversion -Wdouble-promotion -Wfloat-equal -Wswitch-default -Wimplicit-fallthrough -Wuninitialized -Wundef -Wdangling-pointer -Wshadow -Wcast-qual -Wcast-align -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wwrite-strings -Waddress -Wformat -Wunreachable-code -Wmissing-noreturn 
+
+# Misc
+
+Trace view command  
+dump binary value trace.bin *RecorderDataPtr
+
+
+
+# Bugs found
+This section is just a few notes on strange bugs I found
+
+1. **Inconsistent UAR**T: 5Mbit/s was too fast for the dupont cables to consistenly carry. Lowered to 500kbit/s
+2. **Telecommand only firing once**: Forgot to rearm the info buffer by setting info_buffer_empty to true again
+3. **Messages with '\n' characters nit behaving properly**: The newline was used as that end of message marker. Changed it to be a NULL terminator. This required a bit of overhaul. Ultimately, the NULL terminator marks the end of a single message, and the End Of Text character (ETX) now marks the end of the info buffer. changed strchr to memchr to bypass the NULL terminator when looking for the ETX char. In `ringbuff_push`, data_len now includes the NULL terminator of the message
+4. **Info messages were "delayed" by one or more after init**: What I mean by this is that calling LOGI for message n will actually print message n-1. This happened because, in the logger task, I forgot to send a notification to itself after the buffer overflow error.

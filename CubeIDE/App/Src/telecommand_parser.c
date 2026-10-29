@@ -18,6 +18,8 @@ static floatsat_err_t parse_cmd_photo(parser_ctx_t *ctx, floatsat_cmd_t *cmd);
 
 static floatsat_err_t parse_cmd_imu(parser_ctx_t *ctx, floatsat_cmd_t *cmd);
 
+static floatsat_err_t parse_cmd_motor(parser_ctx_t *ctx, floatsat_cmd_t *cmd);
+
 static int cmd_init_control(void);
 static int cmd_init_mission(void);
 static int cmd_init_photo(void);
@@ -37,13 +39,14 @@ static struct {
     struct arg_end *end;
 }argtable_control_info;
 
-// Format: control [-t <type>] <params>
+// Format: control [-t <type>] -p <params>
 static struct {
     struct arg_str *type;
     struct arg_str *params;
     struct arg_end *end;
 }argtable_control_set;
 
+// Format: control -a <angle>
 static struct {
     struct arg_dbl *angle;
     struct arg_end *end;
@@ -97,11 +100,20 @@ static struct {
     struct arg_end *end;
 }argtable_imu_read;
 
+/* =========================== motor command =========================== */
+// Format motor pwm <pwm_val>
+static struct {
+    struct arg_rex *subcmd;
+    struct arg_int *pwm_val;
+    struct arg_end *end;
+}argtable_motor_pwn;
+
 static const cmd_handler_pair_t cmd_handler_table[] = {
     {"control",     parse_cmd_control},
     {"mission",     parse_cmd_mission},
     {"photo",       parse_cmd_photo},
-    {"imu",         parse_cmd_imu}
+    {"imu",         parse_cmd_imu},
+    {"motor",       parse_cmd_motor},
 };
 static const size_t cmd_handler_table_len = sizeof(cmd_handler_table) / sizeof(cmd_handler_pair_t);
 
@@ -262,7 +274,7 @@ static floatsat_err_t parse_cmd_control(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
         cmd->cmd_id = CMD_ID_CONTROL_SET;
         
         // TODO: Is there a way to avoid malloc? 
-        cmd->params = malloc(sizeof(floatsat_args_set_control_t)); 
+        cmd->params = calloc(1U, sizeof(floatsat_args_set_control_t)); 
 
         if(cmd->params == NULL){
             return ERR_OUT_OF_MEM;
@@ -398,9 +410,15 @@ static floatsat_err_t parse_cmd_photo(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
     int nerrors_arr[CMD_PHOTO_N_SUBCMD] = {0};
 
     nerrors_arr[0] = arg_parse(ctx->argc, ctx->argv, (void**)&argtable_photo_info);
+
     nerrors_arr[1] = arg_parse(ctx->argc, ctx->argv, (void**)&argtable_photo_add);
+
     nerrors_arr[2] = arg_parse(ctx->argc, ctx->argv, (void**)&argtable_photo_reset);
 
+
+    nerrors_arr[0] = 10;
+    nerrors_arr[1] = 10;
+    nerrors_arr[2] = 10;
 
     if(!nerrors_arr[0]){
         // Format: photo -i
@@ -410,7 +428,7 @@ static floatsat_err_t parse_cmd_photo(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
         // Format: photo add -a <angle> -t <time> -d <duration>
         cmd->cmd_id = CMD_ID_PHOTO_ADD;
 
-        cmd->params = malloc(sizeof(photo_info_t));
+        cmd->params = calloc(1U, sizeof(photo_info_t));
         photo_info_t *params = (photo_info_t*)cmd->params;
         if(!cmd->params){
             return ERR_OUT_OF_MEM;
@@ -433,7 +451,7 @@ static floatsat_err_t parse_cmd_photo(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
         if(argtable_photo_add.duration->ival[0] <= 0){
             goto cleanup;
         }
-        params->duration = (uint32_t)argtable_photo_add.duration->ival[0];
+        params->duration_ms = (uint32_t)argtable_photo_add.duration->ival[0];
 
 
     }else if(!nerrors_arr[2]){
@@ -460,6 +478,11 @@ static floatsat_err_t parse_cmd_imu(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
 
 
     return ERR_OK;
+}
+
+static floatsat_err_t parse_cmd_motor(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
+{
+    if(!ctx ||)
 }
 
 #pragma endregion

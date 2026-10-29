@@ -20,9 +20,9 @@ floatsat_err_t Time_ParseString(const char *buffer, floatsat_time_t *time)
         return ERR_INVALID_TIME;
     }
 
-    time->hours     = h;
-    time->minutes   = m;
-    time->seconds   = s;
+    time->hours     = (uint8_t)h;
+    time->minutes   = (uint8_t)m;
+    time->seconds   = (uint8_t)s;
 
     return ERR_OK;
 }

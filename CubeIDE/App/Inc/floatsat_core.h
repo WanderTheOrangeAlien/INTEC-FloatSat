@@ -5,7 +5,7 @@
 #include "queue.h"
 
 #include "floatsat_types.h"
-#include "floatsat_error.h"
+#include "floatsat_err_log.h"
 
 #include "floatsat_telemetry.h"
 
@@ -30,16 +30,17 @@ typedef struct floatsat_core_t {
                                                 a lazy action (one done after critical ones) is
                                                 pending. For instance, changing the mission */
 
-    QueueHandle_t       cmd_queue;          // Receives parsed messages here
     TaskHandle_t        task_handle;
     floatsat_cmd_t      current_cmd;
     const telemetry_handle_t  *telementry_handle;
 
     /* Shared resources */
+    QueueHandle_t       cmd_queue;          // Receives parsed messages here
     control_config_t    *g_control_config;  // Control system config
 
 }floatsat_core_t;
 
+void Task_CoreFn(void *args);
 floatsat_err_t Core_Init(floatsat_core_t *handle);
 
 

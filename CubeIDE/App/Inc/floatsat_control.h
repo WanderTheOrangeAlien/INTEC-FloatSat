@@ -12,6 +12,7 @@
 
 #define CONTROL_LOOP_PERIOD_MS      10
 
+
 typedef struct control_handle_t {
     IMU_handle_t        *imu;
     madgwick_filter_t   *madgwick;
@@ -25,8 +26,8 @@ typedef struct control_handle_t {
 
 }control_handle_t;
 
+void Task_ControlFn(void *args);
 floatsat_err_t Control_Init(control_handle_t *handle);
-
 
 floatsat_err_t Control_Update(control_handle_t *handle);
 

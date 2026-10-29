@@ -9,7 +9,7 @@
 #include "queue.h"
 
 #include "floatsat_types.h"
-#include "floatsat_error.h"
+#include "floatsat_err_log.h"
 #include "floatsat_log.h"
 #include "telecommand_parser.h"
 

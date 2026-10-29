@@ -109,7 +109,6 @@ int main(void)
 
   /* USER CODE BEGIN SysInit */
 
-
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -124,14 +123,20 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   // From Percepio View 
-  xTraceEnable(TRC_START);
+  xTraceInitialize();
 
   floatsat_periph_t peripherals = {
     .imu_i2c                  =   &IMU_I2C,
     .main_uart                =   &MAIN_UART,
     .motor_pwm_timer          =   &MOTOR_PWM_TIM,
     .encoder_timer            =   &MOTOR_ENCODER_TIM,
-    .encoder_sampling_timer   =   &ENCODER_SAMPLER_TIM
+    .encoder_sampling_timer   =   &ENCODER_SAMPLER_TIM,
+    .microsec_timer           =   &MICROSEC_TIMER,
+
+    .i2c_init_fn              =   MX_I2C1_Init,
+    .i2c_sda_pins             =   {I2C1_SDA_Pin,0,0},
+    .i2c_scl_pins             =   {I2C1_SCL_Pin,0,0},
+    .i2c_gpio                 =   I2C1_SDA_GPIO_Port
   };
 
   const mx_user_constants_t user_constants = {
@@ -145,6 +150,7 @@ int main(void)
 	  LOGE("MAIN","Failure during initialization!");
 	  Error_Handler();
   }
+
 
   /* USER CODE END 2 */
 
@@ -243,21 +249,31 @@ void SystemClock_Config(void)
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
-
+  static uint64_t prev_us = 0UL, us = 0UL;
+  static uint32_t count = 0U, delta_sum = 0U;
   /* USER CODE END Callback 0 */
   if (htim->Instance == TIM6)
   {
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
+//  if (htim->Instance == TIM6)
+//  {
+//      count++;
+//      us = Util_GetTimeUs();
+//      delta_sum = us - prev_us;
+//      prev_us = us;
+//  }
+
 
   if(htim == &MICROSEC_TIMER){
-    Util_IncTimeUs();
+    Util_IncTimeUsOverflow();
   }
 
   if(htim == &ENCODER_SAMPLER_TIM && callbacks.encoder_sample_cb){
     callbacks.encoder_sample_cb(htim);
   }
+
 
   /* USER CODE END Callback 1 */
 }

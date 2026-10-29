@@ -100,16 +100,24 @@ floatsat_err_t FloatSat_Init(const floatsat_periph_t *periph,
         return ERR_INVALID_ARG;
     }
     floatsat_err_t ret = ERR_OK;
-
-    // Create all required FreeRTOS primitives
-    core_handle.cmd_queue = xQueueCreate(CORE_CMD_QUEUE_LEN,sizeof(floatsat_cmd_t));
     
 
-
+    // FreeRTOS objects MUST be initialized after all peripherals.
+    // The main reason is that creating an object (Queue, smphr etc.) sets the BASEPRI register to 0x50
+    // Which makes all interrupts with a priority value higher then 5 not serviceable
+    // The HAL Tick interrupt has a priority higher than 5, so the HAL Tick is this happens
+    if(__get_BASEPRI() != 0U){
+        return ERR_INVALID_STATE;
+    }
+    
     // Assign the peripheral and user config to each corresponding handle and then call each init function
-    
     /* ------------------------------ IMU ------------------------------ */
-    IMU_handle.i2c_handle = periph->imu_i2c;
+    IMU_handle.i2c_handle           = periph->imu_i2c;
+    IMU_handle.i2c_periph_init_fn   = periph->i2c_init_fn;
+    IMU_handle.i2c_sda_pin          = periph->i2c_sda_pins[Util_I2C2Index(IMU_handle.i2c_handle->Instance)];
+    IMU_handle.i2c_scl_pin          = periph->i2c_scl_pins[Util_I2C2Index(IMU_handle.i2c_handle->Instance)];
+    IMU_handle.i2c_gpio_peirh       = periph->i2c_gpio;
+
     GOTO_ON_ERR_LOG(IMU_Init(&IMU_handle), err, ret,
         LOG_TAG, "Error initializaing IMU. Error code: 0x%04x",ret);
     
@@ -134,7 +142,6 @@ floatsat_err_t FloatSat_Init(const floatsat_periph_t *periph,
 
     /* ----------------------------- Telecommand ----------------------------- */
     cmd_manager.uart = periph->main_uart;
-    cmd_manager.core_cmd_queue = core_handle.cmd_queue;
     GOTO_ON_ERR_LOG(CmdManager_Init(&cmd_manager), err, ret,
         LOG_TAG, "Error initializing telecomand manager. Error code: 0x%04x", ret);
 
@@ -147,8 +154,17 @@ floatsat_err_t FloatSat_Init(const floatsat_periph_t *periph,
     GOTO_ON_ERR_LOG(Core_Init(&core_handle), err, ret, 
         LOG_TAG, "Error initializing Supervisor (aka Core). Error code: 0x%04x", ret);
 
+    /* ----------------------------- Utility ----------------------------- */
+    GOTO_ON_ERR_LOG(Util_Init(periph->microsec_timer), err, ret, 
+        LOG_TAG, "Error initializing utilities. Error code: 0x%04x", ret);
+    
 
-    // Get the callbacks from each module
+
+    /* ============== Create all required FreeRTOS primitives =============== */
+    core_handle.cmd_queue = xQueueCreate(CORE_CMD_QUEUE_LEN,sizeof(floatsat_cmd_t));
+    cmd_manager.core_cmd_queue = core_handle.cmd_queue;
+
+    // Pass the callbacks defined in main.c to their corresponding module
     
     /* ----------------------------- Motor ----------------------------- */
     out_callbacks->encoder_sample_cb = Motor_Cb_EncoderSampler;

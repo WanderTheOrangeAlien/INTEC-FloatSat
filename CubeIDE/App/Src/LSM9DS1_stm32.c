@@ -48,6 +48,7 @@ Magnetometer: Change the MD at CTRL_REG3_M
 
 
 /* ========================== Forward Declarations ========================== */
+static floatsat_err_t LSM9DS1_Init(IMU_handle_t *handle);
 
 static floatsat_err_t IMU_ReadReg(const IMU_handle_t *handle, uint8_t device, 
                                   uint8_t reg,  uint8_t *data);
@@ -67,6 +68,7 @@ static floatsat_err_t IMU_FindDevices(IMU_handle_t *handle);
 static uint8_t CheckValue8(uint8_t value, uint8_t expected, const char *name);
 
 STATIC INLINE bool LSM9DS1_IsValidReg(uint8_t reg, uint8_t dev);
+static floatsat_err_t i2c_bus_recover(IMU_handle_t *handle);
 
 
 /* ====================== Static variables and constants ======================= */
@@ -97,16 +99,40 @@ static const float MAG_CONV_FACTORS[] = {
     0.580f      // 16 gauss 
 };
 
-
-/// @brief Initializes the LSM9DS1 IMU using the handle `params` field
-/// @param handle Pointer to the IMU 
-/// @return `ERR_OK` on success. `ERR_INVALID_ARG` if a NULL pointer was passed. 
-/// `ERR_DEV_I2C_FAIL` if an I2C transaction resulted in an error
 floatsat_err_t IMU_Init(IMU_handle_t *handle)
 {
     if(!handle){
         return ERR_INVALID_ARG;
     }
+
+    if(!handle->i2c_periph_init_fn || !handle->i2c_gpio_peirh){
+        return ERR_INVALID_ARG;
+    }
+
+    uint32_t init_attemps = 0U;
+
+    while(init_attemps < LSM9DS1_I2C_INIT_TRIALS){
+        if(LSM9DS1_Init(handle) == ERR_OK){
+            break;
+        }else{
+            i2c_bus_recover(handle);
+        }
+
+
+        init_attemps++;
+    }
+
+    return ERR_OK;
+}
+
+
+/// @brief Initializes the LSM9DS1 IMU using the handle `params` field
+/// @param handle Pointer to the IMU 
+/// @return `ERR_OK` on success. `ERR_INVALID_ARG` if a NULL pointer was passed. 
+/// `ERR_DEV_I2C_FAIL` if an I2C transaction resulted in an error
+static floatsat_err_t LSM9DS1_Init(IMU_handle_t *handle)
+{
+
     
     // Start by finding the addresses of the Acc+gyro and the magnetometer
     floatsat_err_t ret;
@@ -160,6 +186,7 @@ floatsat_err_t IMU_Init(IMU_handle_t *handle)
     GOTO_ON_ERR(IMU_WriteReg(handle, LSM9DS1_DEV_MAG, LSM9DS1_CTRL_REG3_M, &reg_val), err, ret);
 
 
+    LOGI(LOG_TAG,"Initializacion succesful");
     return ERR_OK;
 err:
     return ret;
@@ -514,6 +541,60 @@ static floatsat_err_t IMU_WriteRegInc(const IMU_handle_t *handle, uint8_t device
     UNUSED(reg);
     UNUSED(data);
     UNUSED(data_len);
+    return ERR_OK;
+}
+
+/* ================================== Misc =================================== */
+static floatsat_err_t i2c_bus_recover(IMU_handle_t *handle)
+{
+    // De-init to release GPIOS
+    HAL_I2C_DeInit(handle->i2c_handle);
+
+    // Reconfigure GPIO as open drain outputs
+    GPIO_InitTypeDef gpio_config = {0};
+
+    gpio_config.Mode    = GPIO_MODE_OUTPUT_OD;
+    gpio_config.Pin     = handle->i2c_scl_pin | handle->i2c_sda_pin;
+    gpio_config.Pull    = GPIO_NOPULL;
+    gpio_config.Speed   = GPIO_SPEED_FREQ_LOW;
+
+    Util_EnableGPIOClock(handle->i2c_gpio_peirh);
+
+    HAL_GPIO_Init(handle->i2c_gpio_peirh, &gpio_config);
+
+    HAL_GPIO_WritePin(handle->i2c_gpio_peirh, handle->i2c_scl_pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(handle->i2c_gpio_peirh, handle->i2c_sda_pin, GPIO_PIN_SET);
+
+    for (size_t i = 0; i < 9; i++)
+    {
+        if(HAL_GPIO_ReadPin(handle->i2c_gpio_peirh, handle->i2c_sda_pin)){
+            break;
+        }
+        HAL_GPIO_WritePin(handle->i2c_gpio_peirh, handle->i2c_scl_pin, GPIO_PIN_RESET);
+        HAL_Delay(1);
+        HAL_GPIO_WritePin(handle->i2c_gpio_peirh, handle->i2c_scl_pin, GPIO_PIN_SET);
+        HAL_Delay(1);
+    }
+
+    // Generate stop condition (SDA transitions from LOW to HIGH while SCL=HIGH)
+    HAL_GPIO_WritePin(handle->i2c_gpio_peirh, handle->i2c_scl_pin, GPIO_PIN_RESET);
+    HAL_Delay(1);
+    HAL_GPIO_WritePin(handle->i2c_gpio_peirh, handle->i2c_sda_pin, GPIO_PIN_RESET);
+    HAL_Delay(1);
+
+    HAL_GPIO_WritePin(handle->i2c_gpio_peirh, handle->i2c_scl_pin, GPIO_PIN_SET);
+    HAL_Delay(1);
+    HAL_GPIO_WritePin(handle->i2c_gpio_peirh, handle->i2c_sda_pin, GPIO_PIN_SET);
+    HAL_Delay(1);
+
+
+    __HAL_RCC_I2C1_FORCE_RESET();
+    __HAL_RCC_I2C1_RELEASE_RESET();
+
+    // Init once again
+    handle->i2c_periph_init_fn();
+    
+
     return ERR_OK;
 }
 

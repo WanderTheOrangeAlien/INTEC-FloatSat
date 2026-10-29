@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include "floatsat_types.h"
-#include "floatsat_error.h"
+#include "floatsat_err_log.h"
 #include "floatsat_log.h"
 
 #include "argtable3.h"

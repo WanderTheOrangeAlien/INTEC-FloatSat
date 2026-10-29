@@ -15,11 +15,7 @@ static TaskHandle_t logger_task_handle = NULL;
 
 static ringbuff_t ringbuff = {
     .buffer     = (uint8_t*)log_buffer,
-#ifndef TEST
     .max_len    = LOG_BUFFER_SIZE
-#else
-    .max_len    = TEST_LOG_BUFFER_SIZE 
-#endif
 };
 
 static const char error_msg[] = "MAX LOG STRING SIZE EXCEEDED\n";
@@ -41,8 +37,8 @@ void Log(const char *format, ...)
         written = strlen(error_msg);
     }
     
-    // Copy bytes as circular buffer. -1 to leave out the NULL terminator
-    int ret = ringbuff_push(&ringbuff, (uint8_t*)temp_buffer, (size_t)written);
+    // Copy bytes as circular buffer.
+    int ret = ringbuff_push(&ringbuff, (uint8_t*)temp_buffer, (size_t)written + 1U);
     
     if(ret != 0){
         // TODO: Raise Log buffer full error
@@ -51,15 +47,9 @@ void Log(const char *format, ...)
     va_end(args);
     if(logger_task_handle != NULL){
 
-        if(n_init_msg){
-            // Set the amount of messages pending that were created during init
-            xTaskNotify(logger_task_handle,n_init_msg,eSetValueWithOverwrite);
-            n_init_msg = 0U;
-        }else{
-            // Increment pending the amount of pending messages
-            xTaskNotify(logger_task_handle, 1U, eIncrement);
-        }
-
+        // Increment the amount of pending messages (this is the normal operation)
+        xTaskNotify(logger_task_handle, 1U, eIncrement);
+        
     }else{
         // Logging was called before Task initialization. Increment the amount of init msg
         n_init_msg++;
@@ -76,18 +66,21 @@ void Log_ResetBuffer(void)
     ringbuff.tail = 0;
 }
 
-int Log_PopNextMsg(uint8_t *buffer, size_t *out_msg_size)
+// TOOO: Change the return types to floatsat_err_t
+
+floatsat_err_t Log_PopNextMsg(uint8_t *buffer, size_t *out_msg_size, size_t buffer_size)
 {
-    // Get the length of the message
-    uint8_t *p = (uint8_t*)strchr((char*)&ringbuff.buffer[ringbuff.tail],'\n');
+    // Get the length of the next message. All messages end with a NULL terminator
+    uint8_t *p = (uint8_t*)strchr((char*)&ringbuff.buffer[ringbuff.tail],'\0');
 
     if(!p){
 
         // Check for wrap around
         if(ringbuff.head < ringbuff.tail){
-            p = (uint8_t*)strchr((char*)ringbuff.buffer,'\n');
+            p = (uint8_t*)strchr((char*)ringbuff.buffer,'\0');
             if(!p){
-                return -2;
+                // There is not a single \n character in the buffer
+                return ERR_INVALID_STATE;
             }
 
             size_t offset = (size_t)(p - ringbuff.buffer);
@@ -96,26 +89,37 @@ int Log_PopNextMsg(uint8_t *buffer, size_t *out_msg_size)
         }else{
             // No new message or invalid fromat
             Log_AddErrorCount();
-            return - 1;
+            return ERR_INVALID_STATE;
         }
         
     }else{
         *out_msg_size = ((size_t)(p - &ringbuff.buffer[ringbuff.tail]) + 1U);
     }
 
+    if(buffer_size < *out_msg_size){
+        return ERR_BUFFER_OVERFLOW;
+    }
+
 
     int ret = ringbuff_pop(&ringbuff, buffer, *out_msg_size);
-
     if(ret != 0){
         Log_AddErrorCount();
-        return ret;
+        return ERR_INVALID_STATE;
     }
-    return 0;
+    // Since this is the last message, end the info buffer with an END_OF_TEXT character
+    buffer[*out_msg_size] = ASCII_ETX;
+    return ERR_OK;
 }
-
+/// @brief Set the task to which the LOGx functions will send notifications. This will immediately send a notification with
+/// the amount of pending init messages
+/// @param task_handle Logger Task handle
 void Log_SetLoggerTaskHandle(TaskHandle_t task_handle)
 {
     logger_task_handle = task_handle;
+
+    // Set the amount of messages pending that were created during init
+    xTaskNotify(logger_task_handle,n_init_msg,eSetValueWithOverwrite);
+    n_init_msg = 0U;
 }
 
 static void Log_AddErrorCount()
@@ -126,78 +130,84 @@ static void Log_AddErrorCount()
 }
 
 /* Dumb circular buffer implementation */
-static int ringbuff_push(ringbuff_t *ringbuff, uint8_t *data, size_t data_len)
+static int ringbuff_push(ringbuff_t *buff, uint8_t *data, size_t data_len)
 {
-    if(ringbuff->full){
+	// important: data_len includes the NULL terminator
+
+
+    if(buff->full){
         return -1;
     }
 
     // Available space for the ringbuffer to grow
-    int space = 0;
-    if(ringbuff->head < ringbuff->tail){
+    size_t space = 0;
+    if(buff->head < buff->tail){
         // The buffer has wrapped around
-        space = ringbuff->tail - ringbuff->head;
+        space = buff->tail - buff->head;
     }else{
-        space = ringbuff->max_len - (ringbuff->head - ringbuff->tail);
+        space = buff->max_len - (buff->head - buff->tail);
     }
 
     if(space < data_len){
         return -1;
     }
 
-    int next = ringbuff->head + data_len;
+    size_t next = buff->head + data_len;
 
-    if(next > ringbuff->max_len){
+    if(next > buff->max_len){
         // Wrap around
-        int bytes_to_end = ringbuff->max_len - ringbuff->head;
-        next = next - ringbuff->max_len;   
-        if(next > ringbuff->tail){
+        size_t bytes_to_end = (buff->max_len - buff->head);
+        next = next - buff->max_len;   
+        if(next > buff->tail){
             // Not enough space
             return -1;
         }
-        memcpy(&ringbuff->buffer[ringbuff->head], data, bytes_to_end);
-        memcpy(ringbuff->buffer, &data[bytes_to_end], data_len - bytes_to_end);
+        memcpy(&buff->buffer[buff->head], data, bytes_to_end);
+        memcpy(buff->buffer, &data[bytes_to_end], data_len - bytes_to_end);
+        buff->buffer[data_len - bytes_to_end] = '\0';
     }else{
-        memcpy(&ringbuff->buffer[ringbuff->head], data, data_len);
+        memcpy(&buff->buffer[buff->head], data, data_len);
+        buff->buffer[buff->head + data_len] = '\0';
     }
-    ringbuff->head = next;
+    buff->head = next;
 
-    ringbuff->full = (ringbuff->head == ringbuff->tail);
+    buff->full = (buff->head == buff->tail);
 
     return 0;
 }
 
-static int ringbuff_pop(ringbuff_t *ringbuff, uint8_t *data, size_t data_len)
+static int ringbuff_pop(ringbuff_t *buff, uint8_t *data, size_t data_len)
 {
-    if(ringbuff->head == ringbuff->tail && !ringbuff->full){
+    if(buff->head == buff->tail && !buff->full){
         return -1;
     }
 
     // Amount of bytes that the buffer currently holds
-    int buff_len = 0;
-    if(ringbuff->head < ringbuff->tail){
+    size_t buff_len = 0;
+    if(buff->head < buff->tail){
         // The buffer has wrapped around
-        buff_len = ringbuff->max_len - (ringbuff->tail - ringbuff->head);
+        buff_len = buff->max_len - (buff->tail - buff->head);
     }else{
-        buff_len = ringbuff->head - ringbuff->tail;
+        buff_len = buff->head - buff->tail;
     }
 
     if(buff_len < data_len){
         return -1;
     }
 
-    int next = ringbuff->tail + data_len;
-    if(next > ringbuff->max_len){
+    // How many bytes should the tail advance.
+    size_t next = buff->tail + data_len;
+    if(next > buff->max_len){
         // Wrap around
-        size_t bytes_to_end = ringbuff->max_len - ringbuff->tail;
-        next = next - ringbuff->max_len;    
+        size_t bytes_to_end = buff->max_len - buff->tail;
+        next = next - buff->max_len;    
 
-        memcpy(data, &ringbuff->buffer[ringbuff->tail], bytes_to_end);
-        memcpy(&data[bytes_to_end], ringbuff->buffer, data_len - bytes_to_end);
+        memcpy(data, &buff->buffer[buff->tail], bytes_to_end);
+        memcpy(&data[bytes_to_end], buff->buffer, data_len - bytes_to_end);
     }else{
-        memcpy(data, &ringbuff->buffer[ringbuff->tail], data_len);
+        memcpy(data, &buff->buffer[buff->tail], data_len);
     }
-    ringbuff->tail = (size_t)next;
+    buff->tail = next;
     return 0;
 
     

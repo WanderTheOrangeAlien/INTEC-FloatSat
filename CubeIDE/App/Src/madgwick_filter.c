@@ -83,12 +83,12 @@ void Madgwick_Update(madgwick_filter_t *f, const IMU_data_t *imu)
     float twom_y = 2.0f * m_y;
     float twom_z = 2.0f * m_z;
     // normalise the accelerometer measurement
-    norm = sqrt(a_x * a_x + a_y * a_y + a_z * a_z);
+    norm = sqrtf(a_x * a_x + a_y * a_y + a_z * a_z);
     a_x /= norm;
     a_y /= norm;
     a_z /= norm;
     // normalise the magnetometer measurement
-    norm = sqrt(m_x * m_x + m_y * m_y + m_z * m_z);
+    norm = sqrtf(m_x * m_x + m_y * m_y + m_z * m_z);
     m_x /= norm;
     m_y /= norm;
     m_z /= norm;
@@ -123,7 +123,7 @@ void Madgwick_Update(madgwick_filter_t *f, const IMU_data_t *imu)
     SEqHatDot_3 = J_12or23 * f_2 - J_33 * f_3 - J_13or22 * f_1 - J_43 * f_4 + J_53 * f_5 + J_63 * f_6;
     SEqHatDot_4 = J_14or21 * f_1 + J_11or24 * f_2 - J_44 * f_4 - J_54 * f_5 + J_64 * f_6;
     // normalise the gradient to estimate direction of the gyroscope error
-    norm = sqrt(SEqHatDot_1 * SEqHatDot_1 + SEqHatDot_2 * SEqHatDot_2 + SEqHatDot_3 * SEqHatDot_3 + SEqHatDot_4 * SEqHatDot_4);
+    norm = sqrtf(SEqHatDot_1 * SEqHatDot_1 + SEqHatDot_2 * SEqHatDot_2 + SEqHatDot_3 * SEqHatDot_3 + SEqHatDot_4 * SEqHatDot_4);
     SEqHatDot_1 = SEqHatDot_1 / norm;
     SEqHatDot_2 = SEqHatDot_2 / norm;
 

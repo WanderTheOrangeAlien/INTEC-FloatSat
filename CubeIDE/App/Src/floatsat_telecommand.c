@@ -27,7 +27,7 @@ floatsat_err_t CmdManager_Init(cmd_manager_handle_t *handle)
     }
 
     if(!handle->uart || !handle->dma_buffer || !handle->msg_buffer || 
-        !handle->parser_ctx || !handle->core_cmd_queue){
+        !handle->parser_ctx){
         return ERR_INVALID_ARG;
     }
 
@@ -41,6 +41,7 @@ floatsat_err_t CmdManager_Init(cmd_manager_handle_t *handle)
     // Start reception
     GOTO_ON_HAL_ERR(HAL_UART_Receive_DMA(handle->uart, handle->dma_buffer, sizeof(floatsat_msg_header_t)),
         err, ret);
+    LOGI(LOG_TAG,"Initializacion succesful");
     return ERR_OK;
 
 err:
@@ -60,6 +61,13 @@ void Task_TelecmdFn(void *args)
 
     floatsat_cmd_t cmd = {0};
 
+    if(!handle->core_cmd_queue){
+        LOGE(LOG_TAG,"Core CMD Queue was not initialized!");
+        while(1){
+            vTaskDelay(1000);
+        }
+    }
+
     while(1){
         notification_value = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         UNUSED(notification_value);
@@ -71,6 +79,10 @@ void Task_TelecmdFn(void *args)
         // Send the command to the Core
         freertos_err = xQueueSend(handle->core_cmd_queue, &cmd, 0U);
 
+        // Rearm the msg buffer
+        memset(handle->msg_buffer, 0, CMD_MSG_BUFFER_LEN);
+        handle->msg_buffer_empty = true;
+
         if(freertos_err == errQUEUE_FULL){
             LOGE(LOG_TAG,"Command queue was full! Las command was dropped");
         }
@@ -80,6 +92,11 @@ void Task_TelecmdFn(void *args)
 
 err:
         // Report the error through a telemetry info packet
+        LOGE(LOG_TAG,"Error, invalid command");
+        
+        // Rearm the msg buffer
+        memset(handle->msg_buffer, 0, CMD_MSG_BUFFER_LEN);
+        handle->msg_buffer_empty = true;
         (void)0U;
     }
 }
@@ -114,7 +131,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
         return;
     }
 
-    switch (handle->state) 
+    switch(handle->state)
     {
     case MSG_RX_STATE_WAIT_HEADER:{
         floatsat_msg_header_t header = {0};
@@ -141,12 +158,12 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
     
     case MSG_RX_STATE_WAIT_MSG:{
         // Compute CRC
-        #warning "CMD Manager CRC not implemented!"
+        #pragma message "CMD Manager CRC not implemented!"
 
         // TODO: WARNING: What happens if handle->msg_buffer is being used by the parser and the DMA overwrites it?
         if(handle->msg_buffer_empty){
-            // Note that the header is overwritten. This is intentional, since the header information was saved in the handle
-            memcpy(handle->msg_buffer, handle->dma_buffer, handle->xfer_len + sizeof(floatsat_msg_header_t));
+            
+            memcpy(handle->msg_buffer, handle->dma_buffer + sizeof(floatsat_msg_header_t), handle->xfer_len);
             handle->msg_buffer_empty = false;
 
             vTaskNotifyGiveFromISR(handle->task_handle, &higher_task_woken);
@@ -157,9 +174,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
         }
 
         handle->state = MSG_RX_STATE_WAIT_HEADER;
-        memset(handle->dma_buffer, 0, handle->xfer_len); // TODO: This might  not be necesary
+        memset(handle->dma_buffer, 0, sizeof(floatsat_msg_header_t) + handle->xfer_len); // TODO: This might  not be necesary
         HAL_UART_Receive_DMA(huart,handle->dma_buffer,sizeof(floatsat_msg_header_t));
-
 
         if(higher_task_woken == pdTRUE){
             portYIELD_FROM_ISR(higher_task_woken); // TODO: Is this redundant? Could we skip the if?

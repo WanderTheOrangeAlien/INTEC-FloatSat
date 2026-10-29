@@ -285,7 +285,7 @@ void test_parse_photo()
     TEST_ASSERT_EQUAL_UINT8(    0U,     params->time.hours);
     TEST_ASSERT_EQUAL_UINT8(    40U,    params->time.minutes);
     TEST_ASSERT_EQUAL_UINT8(    23U,    params->time.seconds);
-    TEST_ASSERT_EQUAL_UINT32(   5000U,  params->duration);
+    TEST_ASSERT_EQUAL_UINT32(   5000U,  params->duration_ms);
 
 
     ret = CmdParser_Parse(&ctx, valid_buffers[3], strlen(valid_buffers[3]),&cmd);
@@ -296,7 +296,7 @@ void test_parse_photo()
     TEST_ASSERT_EQUAL_UINT8(    23U,     params->time.hours);
     TEST_ASSERT_EQUAL_UINT8(    59U,    params->time.minutes);
     TEST_ASSERT_EQUAL_UINT8(    59U,    params->time.seconds);
-    TEST_ASSERT_EQUAL_UINT32(   1234U,  params->duration);
+    TEST_ASSERT_EQUAL_UINT32(   1234U,  params->duration_ms);
 
     ret = CmdParser_Parse(&ctx, valid_buffers[4], strlen(valid_buffers[4]),&cmd);
     TEST_ASSERT_EQUAL_INT(ERR_OK, ret);
@@ -306,7 +306,7 @@ void test_parse_photo()
     TEST_ASSERT_EQUAL_UINT8(    15U,   params->time.hours);
     TEST_ASSERT_EQUAL_UINT8(    9U,    params->time.minutes);
     TEST_ASSERT_EQUAL_UINT8(    0U,    params->time.seconds);
-    TEST_ASSERT_EQUAL_UINT32(   200U,  params->duration);
+    TEST_ASSERT_EQUAL_UINT32(   200U,  params->duration_ms);
 
     ret = CmdParser_Parse(&ctx, valid_buffers[5], strlen(valid_buffers[5]),&cmd);
     TEST_ASSERT_EQUAL_INT(ERR_OK, ret);

@@ -26,6 +26,7 @@ floatsat_err_t Motor_Init(motor_handle_t *handle)
 
     Motor_Stop(handle);
 
+    LOGI(LOG_TAG,"Initialization succesful");
     return ERR_OK;
 
 err:
@@ -44,7 +45,7 @@ floatsat_err_t Motor_SetDutyCycle(motor_handle_t *handle, float duty)
     uint32_t period = __HAL_TIM_GET_AUTORELOAD(handle->pwm_timer); 
     // TODO: The period is set in peripheral initialization and is not supposed to change. Should we set a handle property instead?
 
-    uint16_t compare = (uint16_t)(period * abs);
+    uint16_t compare = (uint16_t)((float)period * abs);
 
     if(is_positive){
         // Right rotation
@@ -98,7 +99,9 @@ floatsat_err_t Motor_Stop(motor_handle_t *handle)
 
 floatsat_err_t Motor_GetSpeed(motor_handle_t *handle, float *out_speed)
 {
-
+    UNUSED(handle);
+    UNUSED(out_speed);
+    return ERR_NOT_IMPLEMENTED;
 }
 
 static floatsat_err_t Motor_AddTimerToRegistry(motor_handle_t *handle, TIM_HandleTypeDef *timer)
@@ -130,12 +133,12 @@ void Motor_Cb_EncoderSampler(TIM_HandleTypeDef *tim)
         return;
     }
 
-    uint16_t count =__HAL_TIM_GET_COUNTER(tim);
+    uint16_t count =(uint16_t)__HAL_TIM_GET_COUNTER(tim);
     // This casting handles the underflow/overflow. Unit: counts
     int16_t delta = (int16_t)(count - handle->last_encoder_count); 
     
     // rev/s = (counts / (counts/rev)) / ms * (ms/s)
-    handle->current_speed = ((float)delta/MOTOR_CPR) / handle->encoder_sampling_period_ms * 1000U;
+    handle->current_speed = ((float)delta/MOTOR_CPR) / (float)handle->encoder_sampling_period_ms * 1000U;
 
     handle->last_encoder_count = count;  
 

@@ -3,7 +3,7 @@
 
 #include "stm32f4xx_hal.h"
 
-#include "floatsat_error.h"
+#include "floatsat_err_log.h"
 
 #include "LSM9DS1_stm32.h"
 #include "madgwick_filter.h"
@@ -21,7 +21,14 @@ typedef struct floatsat_periph_t {
     TIM_HandleTypeDef       *motor_pwm_timer;
     TIM_HandleTypeDef       *encoder_timer;
     TIM_HandleTypeDef       *encoder_sampling_timer;
+    TIM_HandleTypeDef       *microsec_timer;
 
+    // Functions and other info
+
+    void                    (*i2c_init_fn)(void);
+    uint8_t                 i2c_sda_pins[N_I2C];
+    uint8_t                 i2c_scl_pins[N_I2C];
+    GPIO_TypeDef            *i2c_gpio;
 
 }floatsat_periph_t;
 

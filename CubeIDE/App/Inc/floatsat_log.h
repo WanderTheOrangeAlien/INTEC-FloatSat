@@ -11,6 +11,12 @@
 
 #include "FreeRTOS.h"
 #include "task.h"
+#include "floatsat_error.h"
+
+#define ASCII_ETX       ((uint8_t)0x03)
+
+
+#define LOG_ERROR_OVERFLOW  (-2)
 
 #define LOG_LEVEL_ERROR     0
 #define LOG_LEVEL_WARNING   1
@@ -46,8 +52,14 @@
 #define LOG_LEVEL LOG_LEVEL_DEBUG
 #define USE_PRINTF
 
-
+#ifndef TEST
 #define LOG_BUFFER_SIZE             4096
+#else
+#define LOG_BUFFER_SIZE             128
+#pragma message "Using test log buffer size"
+#endif
+
+
 #define LOG_MAX_MSG_SIZE            256
 
 #define TEST_LOG_BUFFER_SIZE        128
@@ -62,7 +74,7 @@ typedef struct ringbuff_t {
 }ringbuff_t;
 
 void Log(const char *format, ...);
-int Log_PopNextMsg(uint8_t *buffer, size_t *out_msg_size);
+floatsat_err_t Log_PopNextMsg(uint8_t *buffer, size_t *out_msg_size, size_t buffer_size);
 void Log_ResetBuffer(void);
 const ringbuff_t *Log_GetRingbuff(void);
 void Log_SetLoggerTaskHandle(TaskHandle_t task_handle);
@@ -72,6 +84,9 @@ void Log_SetLoggerTaskHandle(TaskHandle_t task_handle);
 #else
 #define LOG(x, ...) Log(x ,...)
 #endif
+
+#define PRINTF(format, ...) \
+    do {Log(format,##__VA_ARGS__); } while(0)
 
 
 #if LOG_LEVEL >= LOG_LEVEL_ERROR

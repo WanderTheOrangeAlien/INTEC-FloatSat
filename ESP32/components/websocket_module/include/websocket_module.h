@@ -34,6 +34,6 @@ typedef struct ws_handle_t {
 
 
 esp_err_t Websocket_Init(ws_handle_t *handle);
-esp_err_t Websocket_Send(ws_handle_t *handle, uint8_t *buffer, size_t len);
+esp_err_t Websocket_Send(ws_handle_t *handle, uint8_t *buffer, size_t len, httpd_ws_type_t type);
 
 #endif

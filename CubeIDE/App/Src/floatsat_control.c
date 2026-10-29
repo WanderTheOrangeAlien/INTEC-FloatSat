@@ -3,6 +3,9 @@
 static const Vec3_t forward_vec = {1,0,0}; // Here we assume that the north corresponds to the X axis. 
                                            // TODO: Check the IMU orientation to confirm this 
 
+static const char LOG_TAG[] = "CONTROL";
+
+__attribute__((noreturn))
 void Task_ControlFn(void *args)
 {
     control_handle_t *handle =  (control_handle_t*)args;
@@ -50,8 +53,7 @@ floatsat_err_t Control_Init(control_handle_t *handle)
     //     return ERR_INVALID_ARG;
     // }
 
-
-
+    LOGI(LOG_TAG,"Initialization succesful");
     return ERR_OK;
 }
 

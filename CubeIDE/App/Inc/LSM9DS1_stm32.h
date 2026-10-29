@@ -13,14 +13,16 @@
 #include <stdbool.h>
 
 #include "floatsat_types.h"
-#include "floatsat_error.h"
+#include "floatsat_err_log.h"
 #include "stm32f4xx_hal.h"
+#include "floatsat_utils.h"
 
 
 
 #define LSM9DS1_DEV_AG              0       // Device selection for read/write
 #define LSM9DS1_DEV_MAG             1       // Device selection for read/write
 
+#define LSM9DS1_I2C_INIT_TRIALS     5
 #define LSM9DS1_I2C_TIMEOUT         10      // I2C communication timeout in HAL ticks
 #define LSM9DS1_I2C_TRIALS          5       // Number of attempts during device search
 
@@ -223,11 +225,17 @@ typedef struct LSM9DS1_params_t {
 }LSM9DS1_params_t;
 
 typedef struct IMU_handle_t {
-    I2C_HandleTypeDef       *i2c_handle;       // HAL I2C handle
-    const LSM9DS1_params_t  *params;
-  
-    uint8_t                 acc_gyro_address; // Accel + gyro I2C address. This is set during device search 
-    uint8_t                 mag_address;       // Mag I2C address. This is set during device search
+    I2C_HandleTypeDef           *i2c_handle;       // HAL I2C handle
+    const LSM9DS1_params_t      *params;
+
+    // Cube MX Peripheral initialization function. This is required to recover the bus
+    // in case of a bus hang
+    void                        (*i2c_periph_init_fn)(void);  
+    uint8_t                     i2c_sda_pin;
+    uint8_t                     i2c_scl_pin;
+    GPIO_TypeDef                *i2c_gpio_peirh;
+    uint8_t                     acc_gyro_address; // Accel + gyro I2C address. This is set during device search 
+    uint8_t                     mag_address;       // Mag I2C address. This is set during device search
 
 }IMU_handle_t;
 

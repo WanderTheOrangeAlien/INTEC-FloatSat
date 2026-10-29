@@ -69,7 +69,7 @@ const osThreadAttr_t Task_Telemetry_attributes = {
 osThreadId_t Task_TelecmdHandle;
 const osThreadAttr_t Task_Telecmd_attributes = {
   .name = "Task_Telecmd",
-  .stack_size = 128 * 4,
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for Task_Control */
@@ -178,9 +178,14 @@ void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN StartDefaultTask */
   /* Infinite loop */
+  uint64_t us = 0UL, prev_us = 0U;
   for(;;)
   {
-    osDelay(1);
+    prev_us = Util_GetTimeUs();
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    us = Util_GetTimeUs();
+    (void)(0U);
+
   }
   /* USER CODE END StartDefaultTask */
 }

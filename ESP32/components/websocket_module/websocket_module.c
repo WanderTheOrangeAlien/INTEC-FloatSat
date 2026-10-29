@@ -106,7 +106,7 @@ esp_err_t Websocket_Init(ws_handle_t *handle)
 /// @param buffer message to send
 /// @param len Length of the message
 /// @return 
-esp_err_t Websocket_Send(ws_handle_t *handle, uint8_t *buffer, size_t len)
+esp_err_t Websocket_Send(ws_handle_t *handle, uint8_t *buffer, size_t len, httpd_ws_type_t type)
 {
     if(!handle || ! buffer || len == 0U){
         return ESP_ERR_INVALID_ARG;
@@ -120,7 +120,7 @@ esp_err_t Websocket_Send(ws_handle_t *handle, uint8_t *buffer, size_t len)
     httpd_ws_frame_t frame = {
         .len = len,
         .payload = buffer,
-        .type = HTTPD_WS_TYPE_BINARY
+        .type = type
     };
 
     httpd_ws_send_data_async(handle->server_handle, handle->clients[0].fd, 

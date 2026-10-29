@@ -35,7 +35,8 @@ typedef struct __attribute__((packed)) info_packet_header_t {
 
 
 
-typedef void (*on_rx_cplt_cb_t)(uint8_t *buffer, size_t len);
+typedef void (*on_rx_cplt_cb_t)(uint8_t *buffer, size_t len, uint8_t packet_type);
+typedef void (*on_info_cplt_cb_t)(uint8_t *info_buffer, size_t len);
 
 typedef struct uart_module_config_t {
     uart_port_t     uart_port_num;
@@ -49,6 +50,8 @@ typedef struct uart_module_config_t {
     
     on_rx_cplt_cb_t on_rx_complete;
     size_t          info_buffer_len;    // Floatsat info messages are buffered in this buffer before sending them completely
+    on_info_cplt_cb_t on_info_complete;
+     
 }uart_module_config_t;
 
 typedef struct uart_module_handle_t {

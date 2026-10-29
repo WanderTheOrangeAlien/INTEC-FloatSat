@@ -4,6 +4,12 @@
 
 #include "floatsat_utils.h"
 
+#ifdef TRACE
+#include "trcPrint.h"
+static TraceStringHandle_t xStrInfoBuff;
+static TraceStringHandle_t xStrTelemetry;
+#endif
+
 static floatsat_err_t Telemetry_SendCurrentPacket(telemetry_handle_t *handle);
 STATIC floatsat_err_t Telemetry_HandleInfo(telemetry_handle_t *handle);
 static floatsat_err_t Telemetry_AddToRegistry(telemetry_handle_t *handle);
@@ -31,8 +37,14 @@ floatsat_err_t Telemetry_Init(telemetry_handle_t *handle)
         return ERR_INVALID_ARG;
     }
 
+#ifdef TRACE
+    xTraceStringRegister("Info Buffer", &xStrInfoBuff);
+    xTraceStringRegister("Telemetry",&xStrTelemetry);
+#endif
+
     handle->queue = xQueueCreate(TELEMETRY_QUEUE_SIZE, sizeof(telemetry_packet_t*));
     handle->info_semphr = xSemaphoreCreateMutex();
+    info_buffer[0] = ASCII_ETX;
 
     if(handle->queue == 0U){
         LOGE(LOG_TAG,"Queue could not be created");
@@ -46,6 +58,7 @@ floatsat_err_t Telemetry_Init(telemetry_handle_t *handle)
 
     Telemetry_AddToRegistry(handle);
 
+    LOGI(LOG_TAG,"Initializacion succesful");
     return ERR_OK;
 
 }
@@ -66,18 +79,14 @@ void Task_TelemetryFn(void *args)
     while(1)
     {
         notification_value = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        UNUSED(notification_value);
 
+        handle->current_deadline_us = Util_GetTimeUs() + (uint64_t)(TELEMETRY_RUNTIME_MS * 1000U);
 
-        if(TRACE_task_run_count == 1){
-        	LOGI(LOG_TAG,"Telemetry Started!");
+        if(TRACE_task_run_count == 30){
+        	LOGI(LOG_TAG,"Telemetry 10!");
         }
-
         TRACE_task_run_count++;
-
-        // Get start and end times
-        handle->task_start_time_us = Util_GetTimeUs();
-        handle->task_end_time_us = handle->task_start_time_us 
-            + (portTICK_PERIOD_MS * 1000U) - INFO_CHUNK_TIME_MARGIN_US;
 
         // Start by checking for error conditions
         if(!(handle->packet_type_mask & PACKET_MASK_FAST)){
@@ -94,13 +103,27 @@ void Task_TelemetryFn(void *args)
             // Only fast telemetry, first part of packet
             handle->current_packet.type = PACKET_TYPE_FAST;
         }
+
         GOTO_ON_ERR(Telemetry_SendCurrentPacket(handle), err, ret);
         // clear fast and slow flags
-        handle->packet_type_mask &= ~(PACKET_MASK_FAST | PACKET_MASK_SLOW);
+        handle->packet_type_mask &= (uint8_t)~(PACKET_MASK_FAST | PACKET_MASK_SLOW);
         
+
         // Handle info packet
-        if(handle->packet_type_mask & PACKET_MASK_INFO){
+
+        // If info buffer has not been acquired
+        if(!handle->info_buffer){
+            ret = Telemetry_TakeInfoBuffer(handle, &handle->info_buffer);
+            if(ret != ERR_OK){
+                continue;
+            }
+        }
+
+        uint8_t *p = (uint8_t*)memchr(handle->info_buffer, ASCII_ETX, TELEMETRY_INFO_BUFFER_SIZE);
+        if(p != NULL && p != handle->info_buffer){
             GOTO_ON_ERR(Telemetry_HandleInfo(handle), err, ret);
+        }else{
+            Telemetry_GiveInfoBuffer(handle, &handle->info_buffer);
         }
 
 
@@ -215,15 +238,17 @@ floatsat_err_t Telemetry_TakeInfoBuffer(telemetry_handle_t *handle, uint8_t **ou
         return ERR_INVALID_ARG;
     }
 
-    if(handle->info_buffer_not_empty){
-        return ERR_RESOURCE_NOT_AVAILABLE;
-    }
-
     if(xSemaphoreTake(handle->info_semphr, 0U)){
         *out_ptr = info_buffer;
+#ifdef TRACE
+        xTracePrint(xStrInfoBuff,"Successfully acquired");
+#endif
         return ERR_OK;
     }else{
         *out_ptr = NULL;
+#ifdef TRACE
+        xTracePrint(xStrInfoBuff,"Busy");
+#endif
         return ERR_RESOURCE_BUSY;
     }
 }
@@ -249,11 +274,10 @@ floatsat_err_t Telemetry_GiveInfoBuffer(telemetry_handle_t *handle, uint8_t **pt
 
     if(ret == pdTRUE){
         *ptr = NULL;
-        // Indicate that an info packet is pending for transmission by raising the flag
-        handle->packet_type_mask |= PACKET_MASK_INFO;
 
-        // Indicate that the buffer is not empty
-        handle->info_buffer_not_empty = true;
+#ifdef TRACE
+        xTracePrint(xStrInfoBuff,"Successfully released");
+#endif
 
         return ERR_OK;
     }else{
@@ -268,10 +292,16 @@ STATIC floatsat_err_t Telemetry_HandleInfo(telemetry_handle_t *handle)
     if(!handle){
         return ERR_INVALID_ARG;
     }
+    // xTracePrintF(xStrTelemetry,"Info handler start at %lu", (uint32_t)Util_GetTimeUs());
+
 
     floatsat_err_t ret;
-    // Acquire buffer
-    ret = Telemetry_TakeInfoBuffer(handle, &handle->info_bufer);
+    // Acquire buffer if not already taken (We know if we have ownership over it if handle->info_buffer is not NULL)
+    if(!handle->info_buffer){
+        ret = Telemetry_TakeInfoBuffer(handle, &handle->info_buffer);
+    }else{
+        ret = ERR_OK;
+    }
 
     if(ret != ERR_OK){
         LOGE(LOG_TAG,"Info packet bit was set, but the info buffer was not released. This is an invalid state!");
@@ -281,24 +311,37 @@ STATIC floatsat_err_t Telemetry_HandleInfo(telemetry_handle_t *handle)
     switch (handle->info_state)
     {
     case INFO_STATE_START:{
-// floatsat_err_t Telemetry_AddToRegistry(telemetry_handle_t *handle) // Why is this here?
-        // Create the header
-        size_t len = strnlen((char*)handle->info_bufer, TELEMETRY_INFO_BUFFER_SIZE);
+        // Create the header. We use memchr because the ASCII_ETX char is beyond a NULL terminator
+        uint8_t *p = (uint8_t*)memchr(handle->info_buffer, ASCII_ETX, TELEMETRY_INFO_BUFFER_SIZE);
+        if(!p){
+            // Faulty buffer, reset it
+            memset(handle->info_buffer, 0, TELEMETRY_INFO_BUFFER_SIZE); // TODO: memset might be unnecesary if ETX marks the end of the buffer
+            handle->info_buffer[0] = ASCII_ETX;
+
+            Telemetry_GiveInfoBuffer(handle, &handle->info_buffer);
+            return ERR_INVALID_STATE;
+        }
+        size_t len = (size_t)(p - handle->info_buffer) + 1U;
+        
+        if(len <= 1){
+            LOGE(LOG_TAG,"Tried to create an info chunk header, but the buffer was empty");
+            Telemetry_GiveInfoBuffer(handle, &handle->info_buffer);
+            return ERR_INVALID_STATE;
+        }
+
         uint8_t last_chunk_size = len % INFO_CHUNK_DATA_SIZE;
 
         info_packet_header_t header = {
             .type               = PACKET_TYPE_INFO_HEADER,
             .timestamp          = HAL_GetTick(),
-            .nchunks            = (last_chunk_size == 0U) ? len / INFO_CHUNK_DATA_SIZE : len / INFO_CHUNK_DATA_SIZE + 1U,
+            .nchunks            = (uint8_t)((last_chunk_size == 0U) ? len / INFO_CHUNK_DATA_SIZE : len / INFO_CHUNK_DATA_SIZE + 1U),
             .last_chunk_size    = last_chunk_size
         };
 
         //TODO: Calculate CRC
 
         // Send the header, blocking 
-        handle->tx_busy = true;
-        
-
+        handle->tx_busy = true;        
         GOTO_ON_HAL_ERR(HAL_UART_Transmit_DMA(handle->uart, (uint8_t*)&header, sizeof(info_packet_header_t)),
             err, ret);
         while(handle->tx_busy){;}
@@ -308,22 +351,29 @@ STATIC floatsat_err_t Telemetry_HandleInfo(telemetry_handle_t *handle)
         handle->last_chunk_size = header.last_chunk_size;
         
         handle->info_state = INFO_STATE_TX;
+        xTracePrintF(xStrTelemetry,"Sent header with %u chunks and %u last chunk",handle->nchunks,handle->last_chunk_size);
         // Intended fall through. We want to start sending chunks immediately
-        __attribute__((fallthrough))
+        __attribute__((fallthrough));
         
     }
 
     case INFO_STATE_TX:{
-        bool can_send = (handle->task_end_time_us - Util_GetTimeUs()) > INFO_CHUNK_RX_TIME_US;
-        while(can_send){
 
+        // TODO: Change this calculation to an int
+        bool can_send = (Util_GetTimeUs() + INFO_CHUNK_RX_TIME_US) < handle->current_deadline_us;
+
+
+        while(can_send){
             info_packet_chunk_t chunk = {
                 .type = PACKET_TYPE_INFO_CHUNK,
                 .chunk_number = handle->chunk_index,
-                .data = &handle->info_bufer[handle->chunk_index * INFO_CHUNK_DATA_SIZE]
+                .data = &handle->info_buffer[handle->chunk_index * INFO_CHUNK_DATA_SIZE]
             };
             
-            // Send the header
+            // TODO: It would be better to just send the entire chunk in one go
+            // Send the chunk header
+            uint16_t tx_len = (handle->chunk_index < handle->nchunks - 1) ? INFO_CHUNK_DATA_SIZE: handle->last_chunk_size;
+            
             handle->tx_busy = true;
             GOTO_ON_HAL_ERR(
                 HAL_UART_Transmit_DMA(handle->uart, (uint8_t*)&chunk, offsetof(info_packet_chunk_t, data)), 
@@ -331,20 +381,23 @@ STATIC floatsat_err_t Telemetry_HandleInfo(telemetry_handle_t *handle)
             while(handle->tx_busy){;}
 
             // Send the body
-            uint16_t tx_len = (handle->chunk_index < handle->nchunks - 1) ? INFO_CHUNK_DATA_SIZE: handle->last_chunk_size;
             handle->tx_busy = true;
             GOTO_ON_HAL_ERR(
                 HAL_UART_Transmit_DMA(handle->uart, chunk.data, tx_len), 
                 err, ret);
             while(handle->tx_busy){;}
+            xTracePrintF(xStrTelemetry,"Sent chunk %u",handle->chunk_index);
+
 
             handle->chunk_index++;
 
             if(handle->chunk_index == handle->nchunks){
                 goto tx_complete;
             }
+                        
+            can_send = (Util_GetTimeUs() + INFO_CHUNK_RX_TIME_US) < handle->current_deadline_us;
 
-            can_send = (handle->task_end_time_us - Util_GetTimeUs()) > INFO_CHUNK_RX_TIME_US;
+            
         }
         break;
     }
@@ -355,16 +408,29 @@ STATIC floatsat_err_t Telemetry_HandleInfo(telemetry_handle_t *handle)
     return ERR_OK;
 
 tx_complete:
-    handle->info_state = INFO_STATE_START;
-    handle->packet_type_mask &= ~PACKET_MASK_INFO;
-    handle->info_buffer_not_empty = false;
-    return Telemetry_GiveInfoBuffer(handle, &handle->info_bufer);
+    handle->info_state = (uint8_t)INFO_STATE_START;
+    handle->packet_type_mask &= (uint8_t)~PACKET_MASK_INFO;
+    memset(handle->info_buffer, 0, TELEMETRY_INFO_BUFFER_SIZE);
+    handle->info_buffer[0] = ASCII_ETX;
+#ifdef TRACE
+    xTraceDisable();
+#endif
+    return Telemetry_GiveInfoBuffer(handle, &handle->info_buffer);
 
-err: 
-    handle->info_state = INFO_STATE_START;
-    handle->packet_type_mask &= ~PACKET_MASK_INFO;
-    Telemetry_GiveInfoBuffer(handle, &handle->info_bufer);
+err:
+    LOGE(LOG_TAG,"HAL UART error: 0x%04x",handle->uart->ErrorCode);
+    handle->info_state = (uint8_t)INFO_STATE_START;
+    handle->packet_type_mask &= (uint8_t)~PACKET_MASK_INFO;
+    memset(handle->info_buffer, 0, TELEMETRY_INFO_BUFFER_SIZE);
+    handle->info_buffer[0] = ASCII_ETX;
+
+    floatsat_err_t give_ret = Telemetry_GiveInfoBuffer(handle, &handle->info_buffer);
+    if(give_ret != ERR_OK){
+        LOGE(LOG_TAG,"Could not release info buffer in error handling");
+    }
+
     return ret;
+    
 }
 
 static floatsat_err_t Telemetry_AddToRegistry(telemetry_handle_t *handle)

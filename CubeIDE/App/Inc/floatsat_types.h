@@ -54,16 +54,16 @@ typedef struct control_config_t {
 /* ========================================================================== */
 
 
-#define CMD_ID_CONTROL_INFO     0x10
-#define CMD_ID_CONTROL_SET      0x11
-#define CMD_ID_CONTROL_ANGLE    0x12
+#define CMD_ID_CONTROL_INFO     ((uint8_t)0x10)
+#define CMD_ID_CONTROL_SET      ((uint8_t)0x11)    // Uses malloc
+#define CMD_ID_CONTROL_ANGLE    ((uint8_t)0x12)
 
-#define CMD_ID_MISSION_INFO     0x20
-#define CMD_ID_MISSION_SET      0x21
+#define CMD_ID_MISSION_INFO     ((uint8_t)0x20)
+#define CMD_ID_MISSION_SET      ((uint8_t)0x21)
 
-#define CMD_ID_PHOTO_INFO       0x30
-#define CMD_ID_PHOTO_ADD       0x31
-#define CMD_ID_PHOTO_RESET       0x32
+#define CMD_ID_PHOTO_INFO       ((uint8_t)0x30)
+#define CMD_ID_PHOTO_ADD        ((uint8_t)0x31)    // Uses malloc
+#define CMD_ID_PHOTO_RESET      ((uint8_t)0x32)
 
 
 typedef struct floatsat_cmd_t {
@@ -101,7 +101,7 @@ typedef struct floatsat_time_t {
 typedef struct photo_info_t {
     float angle;
     floatsat_time_t time;
-    uint32_t duration;
+    uint32_t duration_ms;
 
 }photo_info_t;
 

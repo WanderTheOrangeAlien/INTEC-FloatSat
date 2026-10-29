@@ -4,7 +4,7 @@
 #include <stdbool.h>
 
 #include "stm32f4xx_hal.h"
-#include "floatsat_error.h"
+#include "floatsat_err_log.h"
 #include "floatsat_types.h"
 
 
@@ -16,6 +16,8 @@
 #define TELEMETRY_UART_TIMEOUT_MS   2U
 
 #define TELEMETRY_INFO_BUFFER_SIZE    1024U
+
+#define TELEMETRY_RUNTIME_MS       5U
 
 #define PACKET_TYPE_FAST            0   // Only the orientation vector
 #define PACKET_TYPE_EXTENDED        1   // Orientation plus all sensors and subsystem health
@@ -35,14 +37,14 @@
 #define INFO_CHUNK_RX_TIME_US       (80U*2U)    // Estimated time needed for sending a chunk.   
 
 
-typedef struct telemetry_packet_fast_t {
+typedef struct __attribute__((packed)) telemetry_packet_fast_t {
     Vec3_t orientation;
     float rw_speed;
 }telemetry_packet_fast_t;
 
 
 
-typedef struct telemetry_packet_slow_t {
+typedef struct __attribute__((packed)) telemetry_packet_slow_t {
     float temp;
     float v_batt;
     // TODO: Add Subsystem health indicators
@@ -68,7 +70,7 @@ typedef struct __attribute__((packed)) info_packet_header_t {
 
 }info_packet_header_t;
 
-typedef struct info_packet_chunk_t {
+typedef struct __attribute__((packed)) info_packet_chunk_t {
     uint8_t type;
     uint8_t chunk_number;
     uint8_t *data; // When transmiting, will only read INFO_CHUNK_DATA_SIZE bytes from this pointer
@@ -84,7 +86,7 @@ typedef struct telemetry_handle_t {
     TaskHandle_t task_handle;
 
     volatile uint8_t packet_type_mask;    // Bit mask indicating which types of packets must be sent.
-    volatile telemetry_packet_t current_packet;
+    telemetry_packet_t current_packet;
     volatile bool tx_busy;
 
     uint8_t info_state;                 // State for the info transmission state machine
@@ -94,13 +96,15 @@ typedef struct telemetry_handle_t {
     // uint32_t info_buffer_index;
 
     uint64_t task_start_time_us;
-    uint64_t task_end_time_us;
+    uint64_t current_deadline_us;       // The telemetry task has a fixed runtime of TELEMETRY_RUNTIME_MS milliseconds
 
-    uint8_t *info_bufer;                // Buffer acquired with `Telemetry_TakeInfoBuffer`
+    uint8_t *info_buffer;                // Buffer acquired with `Telemetry_TakeInfoBuffer`
     volatile bool info_buffer_not_empty;
 
 }telemetry_handle_t;
 
+
+void Task_TelemetryFn(void *args);
 
 floatsat_err_t Telemetry_Init(telemetry_handle_t *handle);
 
