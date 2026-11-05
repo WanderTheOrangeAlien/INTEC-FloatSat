@@ -10,6 +10,8 @@
 #define MOTOR_PWM_CHANNEL_R     TIM_CHANNEL_1
 #define MOTOR_PWM_CHANNEL_L     TIM_CHANNEL_2
 
+#define MOTOR_SPEED_WIN_SIZE    5U
+
 #define MOTOR_CPR               64U // Motor counts per revolution
 
 typedef struct motor_handle_t {
@@ -19,7 +21,12 @@ typedef struct motor_handle_t {
     bool                pwm_started;
 
     volatile float      current_speed;  // Updated by the encoder interrupt 
+    volatile float      speed_window[MOTOR_SPEED_WIN_SIZE];   // For averaging speed
+    volatile uint8_t    speed_window_idx;
+    
+
     volatile uint16_t   last_encoder_count;
+    uint64_t            last_encoder_read_us;
 
     uint32_t            encoder_sampling_period_ms;
 

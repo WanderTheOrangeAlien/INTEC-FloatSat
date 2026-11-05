@@ -11,6 +11,7 @@ static TraceStringHandle_t xStrTelemetry;
 #endif
 
 static floatsat_err_t Telemetry_SendCurrentPacket(telemetry_handle_t *handle);
+static floatsat_err_t Telemetry_SendDebugPacket(telemetry_handle_t *handle);
 STATIC floatsat_err_t Telemetry_HandleInfo(telemetry_handle_t *handle);
 static floatsat_err_t Telemetry_AddToRegistry(telemetry_handle_t *handle);
 
@@ -108,9 +109,13 @@ void Task_TelemetryFn(void *args)
         // clear fast and slow flags
         handle->packet_type_mask &= (uint8_t)~(PACKET_MASK_FAST | PACKET_MASK_SLOW);
         
+        // Handle debug packet
+        if(handle->packet_type_mask & PACKET_MASK_DEBUG){
+            GOTO_ON_ERR(Telemetry_SendDebugPacket(handle), err, ret);
+            handle->packet_type_mask &= (uint8_t)~(PACKET_MASK_DEBUG);
+        }
 
         // Handle info packet
-
         // If info buffer has not been acquired
         if(!handle->info_buffer){
             ret = Telemetry_TakeInfoBuffer(handle, &handle->info_buffer);
@@ -169,6 +174,29 @@ static floatsat_err_t Telemetry_SendCurrentPacket(telemetry_handle_t *handle)
     return ERR_OK;
 }
 
+static floatsat_err_t Telemetry_SendDebugPacket(telemetry_handle_t *handle)
+{
+    if(!handle){
+        return ERR_INVALID_ARG;
+    }
+
+    handle->tx_busy = true;
+    HAL_StatusTypeDef status = HAL_UART_Transmit_DMA(
+        handle->uart, 
+        (uint8_t*)&handle->debug_packet, 
+        sizeof(telemetry_packet_debug_t));
+
+    if(status != HAL_OK){
+         LOGE(LOG_TAG, "Error in transmission. Status: %d", status);
+        return ERR_UART_TX_FAIL;
+    }
+    while(handle->tx_busy) {;}
+
+
+
+    return ERR_OK;
+
+}
 
 floatsat_err_t Telemetry_AddFast(telemetry_handle_t *handle, telemetry_packet_fast_t *packet)
 {
@@ -209,19 +237,42 @@ floatsat_err_t Telemetry_AddSlow(telemetry_handle_t *handle, telemetry_packet_sl
         return ERR_INVALID_ARG;
     }
 
-    taskENTER_CRITICAL();
-
     if(handle->packet_type_mask & PACKET_MASK_SLOW){
         LOGW(LOG_TAG, "Warning: Last slow telemetry packet was not dispatched. "
             "Last packet will be dropped and will continue with the current one");
     }
 
+    taskENTER_CRITICAL();
     handle->packet_type_mask |= PACKET_MASK_SLOW;
 
     // The slow packet uses the same timestamp as the preceeding fast packet, so 
     // it is not updated
     handle->current_packet.slow = *packet;
     taskEXIT_CRITICAL();
+
+    return ERR_OK;
+}
+
+
+floatsat_err_t Telemetry_AddDebug(telemetry_handle_t *handle, telemetry_packet_debug_t *packet)
+{
+    if(!handle || !packet){
+        return ERR_INVALID_ARG;
+    }
+
+    if(handle->packet_type_mask & PACKET_MASK_DEBUG){
+        LOGW(LOG_TAG, "Warning: Last debug telemetry packet was not dispatched. "
+            "Last packet will be dropped and will continue with the current one");
+    }
+
+    taskENTER_CRITICAL(); 
+    {
+        handle->debug_packet        = *packet;
+        handle->debug_packet.type   = PACKET_TYPE_DEBUG;
+        handle->packet_type_mask |= PACKET_MASK_DEBUG;
+    }
+    taskEXIT_CRITICAL();
+
 
     return ERR_OK;
 }

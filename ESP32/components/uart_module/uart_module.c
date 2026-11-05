@@ -8,6 +8,7 @@ static void on_packet_rx_complete(uart_module_handle_t *handle);
 static const char *uart_event_type_to_str(uart_event_type_t event_type);
 
 static void print_str_with_hex(char buffer[], size_t len);
+static void print_hex(uint8_t *buffer, size_t len);
 
 static const char *TAG = "UART";
 
@@ -15,7 +16,8 @@ static const size_t packet_lengths[] = {
     [PACKET_TYPE_FAST]              25U,
     [PACKET_TYPE_EXTENDED]          33U,
     [PACKET_TYPE_INFO_HEADER]       13U,
-    [PACKET_TYPE_INFO_CHUNK]        INFO_CHUNK_DATA_SIZE + 2U
+    [PACKET_TYPE_INFO_CHUNK]        INFO_CHUNK_DATA_SIZE + 2U,
+    [PACKET_TYPE_DEBUG]             38U,
 };
 
 void Task_UART(void *params)
@@ -69,10 +71,11 @@ static void handle_floatsat_telemetry(uart_module_handle_t *handle, size_t rx_le
 
             // Validate packet type
             if(handle->current_packet_type >= sizeof(packet_lengths) / sizeof(packet_lengths[0])){
-                ESP_LOGE(TAG,"Invalid packet type: %u. rx_len = %lu",
-                     handle->current_packet_type, rx_len);
+                // ESP_LOGE(TAG,"Invalid packet type: %u. rx_len = %lu",
+                //      handle->current_packet_type, rx_len);
                 memset(handle->rx_buffer,0,handle->config.rx_buff_size);
                 uart_flush_input(handle->config.uart_port_num);
+                vTaskDelay(1);
                 return;
             }
             
@@ -89,7 +92,7 @@ static void handle_floatsat_telemetry(uart_module_handle_t *handle, size_t rx_le
                 // Interpret this case as the init glitch and ignore
 
                 if(handle->current_packet_type == 0x00){
-                    printf("NULL init byte detected. Rearming...\n");
+                    // printf("NULL init byte detected. Rearming...\n");
                     handle->rx_state = UART_RX_STATE_WAIT_HEADER;
                 }
 
@@ -124,6 +127,17 @@ static void handle_floatsat_telemetry(uart_module_handle_t *handle, size_t rx_le
                     &handle->rx_buffer[handle->rx_idx], rx_len, portMAX_DELAY);
                     
                 handle->rx_idx += rx_len;
+
+                // static uint32_t dbg_count = 0U;
+                // if(++dbg_count >= 40 && handle->current_packet_type == PACKET_TYPE_FAST){
+                //     float speed = 0.0f;
+                //     printf("rx_len = %u, rx_idx = %u\n",rx_len, handle->rx_idx);
+                //     print_hex(handle->rx_buffer, handle->rx_idx);
+                //     printf("\n");
+                //     memcpy(&speed, (uint8_t*)(handle->rx_buffer + 21U),sizeof(float));
+                //     printf("RW: %.4f\n",speed);
+                //     dbg_count = 0U;
+                // }
                 
                 // Is this right? Should we handle this in the else? It's almost the same code
                 if(remaining == rx_len){
@@ -162,11 +176,14 @@ static void handle_floatsat_telemetry(uart_module_handle_t *handle, size_t rx_le
 
 }
 
+
 static void on_packet_rx_complete(uart_module_handle_t *handle)
 {
     // printf("\tWith idx=%u. Got data: ",handle->rx_idx);
     // print_str_with_hex((char*)handle->rx_buffer, handle->rx_idx);
     // printf("\n");
+
+
     switch (handle->current_packet_type)
     {
     case PACKET_TYPE_FAST:
@@ -213,6 +230,14 @@ static void on_packet_rx_complete(uart_module_handle_t *handle)
         }
 
         handle->info_chunk_idx++;
+        break;
+    }
+
+    case PACKET_TYPE_DEBUG: {
+        if(handle->config.on_rx_complete){
+            handle->config.on_rx_complete(handle->rx_buffer, handle->rx_idx, PACKET_TYPE_DEBUG);
+        }
+        break;
     }
 
     default:
@@ -315,6 +340,14 @@ static void print_str_with_hex(char buffer[], size_t len)
 
     }
     
+}
+
+static void print_hex(uint8_t *buffer, size_t len)
+{
+    for (size_t i = 0; i < len; i++)
+    {
+        printf("%02X ",buffer[i]);
+    }
 }
 
 #pragma endregion

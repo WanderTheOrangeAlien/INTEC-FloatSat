@@ -22,5 +22,4 @@ floatsat_err_t Util_EnableGPIOClock(GPIO_TypeDef *gpio);
 void Util_Stopwatch_Start(uint64_t *time_us);
 void Util_Stopwatch_Stop(uint64_t *time_us, const char *message);
 
-
 #endif

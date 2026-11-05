@@ -324,25 +324,6 @@ void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
 
-  /*
-   * Espacio reservado para reportar el error.
-   *
-   * Ejemplo:
-   *
-   * printf("Parametro incorrecto: archivo %s, linea %lu\r\n",
-   *        file,
-   *        line);
-   *
-   * En la implementación actual no se realiza ninguna acción.
-   */
-
-  /*
-   * Los parámetros no se utilizan actualmente.
-   *
-   * Dependiendo de las opciones del compilador, esto podría generar
-   * advertencias por parámetros sin usar.
-   */
-
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */

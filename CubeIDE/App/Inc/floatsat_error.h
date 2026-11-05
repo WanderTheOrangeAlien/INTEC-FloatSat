@@ -26,6 +26,9 @@ typedef enum floatsat_err_t {
     ERR_RESOURCE_BUSY           =   0x200,
     ERR_RESOURCE_NOT_AVAILABLE  =   0X201, 
 
+    ERR_CONTROL_READ_FAIL       =   0x300,
+    ERR_IMU_NOT_CALIBRATED      =   0x301,
+
     ERR_TELEM_MISSED_FAST       =   0x400,    // Fast telemetry was not added before other types
 
 
@@ -41,6 +44,8 @@ typedef enum floatsat_err_t {
     ERR_HAL_TIMEOUT             =   0x803,
 
     ERR_CORE_MAX_PHOTOS         =   0xA00,
+
+    ERR_DATABUS_INVALID_WRITE   =   0xB00,
 
     ERR_NOT_IMPLEMENTED         =   0xF00,
 

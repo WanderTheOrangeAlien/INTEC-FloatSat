@@ -76,7 +76,13 @@ The following compiler flags have been added
 Trace view command  
 dump binary value trace.bin *RecorderDataPtr
 
+## About the IMU
+I am having drift even after calibrating the IMU. Possible tests:
+Make the delta t fixed
+Force all gyro measurements to zero. How does the drift change?
+Re-enable each gyro axis one by one. Which one introduces the most drift?
 
+Do the same with the accelerometer and the magnetometer
 
 # Bugs found
 This section is just a few notes on strange bugs I found

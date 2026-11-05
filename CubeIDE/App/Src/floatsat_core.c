@@ -9,11 +9,38 @@ STATIC floatsat_err_t Core_ChangeMission(floatsat_core_t *handle, uint32_t missi
 STATIC floatsat_err_t Core_AddPhoto(floatsat_core_t *handle, photo_info_t *photo_info);
 STATIC floatsat_err_t Core_SetControl(floatsat_core_t *handle, floatsat_cmd_t *cmd);
 STATIC floatsat_err_t Core_ResetPhotos(floatsat_core_t *handle);
+
+static floatsat_err_t Core_ReadIMU(floatsat_core_t *handle, uint32_t flags);
+static floatsat_err_t Core_IMUCalibrate(floatsat_core_t *handle, uint32_t flags);
+static floatsat_err_t Core_IMUCalibrate_Gyro(floatsat_core_t *handle);
+
 STATIC void Core_PrintPhotoInfo(floatsat_core_t *handle);
 
 static floatsat_err_t Core_Mission_Playground(floatsat_core_t *handle);
 
 static const char LOG_TAG[] = "CORE";
+
+floatsat_err_t Core_Init(floatsat_core_t *handle)
+{
+    if(!handle){
+        return ERR_INVALID_ARG;
+    }
+
+    if(!handle->photo_info_arr || !handle->telementry_handle
+        || !handle->g_control_config || !handle->motor_handle || !handle->imu_handle){
+        return ERR_INVALID_ARG;
+    }
+    floatsat_err_t ret = ERR_OK;
+
+    GOTO_ON_ERR(DataBus_InitReader(handle->data_bus_reader), err, ret);
+
+    LOGI(LOG_TAG,"Initialization succesful");
+    return ERR_OK;
+
+err:
+    return ret;
+}
+
 
 __attribute__((noreturn))
 void Task_CoreFn(void *args)
@@ -29,6 +56,9 @@ void Task_CoreFn(void *args)
             vTaskDelay(1000);
         }
     }
+
+    Core_IMUCalibrate(handle, 
+        CMD_IMU_CAL_FLAG_ACCEL | CMD_IMU_CAL_FLAG_GYRO | CMD_IMU_CAL_FLAG_MAG);
     
     while(1){
 
@@ -43,21 +73,7 @@ void Task_CoreFn(void *args)
     }
 }
 
-floatsat_err_t Core_Init(floatsat_core_t *handle)
-{
-    if(!handle){
-        return ERR_INVALID_ARG;
-    }
 
-    if(!handle->photo_info_arr || !handle->telementry_handle
-        || !handle->g_control_config){
-        return ERR_INVALID_ARG;
-    }
-
-    LOGI(LOG_TAG,"Initialization succesful");
-    return ERR_OK;
-
-}
 
 #pragma region mission
 
@@ -101,11 +117,11 @@ STATIC floatsat_err_t Core_HandleCmd(floatsat_core_t *handle, floatsat_cmd_t *cm
     {
         case CMD_ID_CONTROL_INFO:
             taskENTER_CRITICAL();
-            float *params = handle->g_control_config->params;
+            control_cascade_params_t *params = &handle->g_control_config->params;
             taskEXIT_CRITICAL();
-            LOGI(LOG_TAG,"(INFO_CONTROL) {Type = %u\n Params: [%f %f %f %f]\n Angle: %f\n}",
+            LOGI(LOG_TAG,"(INFO_CONTROL) {Type = %u\n Params: [K_theta = %f K_p = %f K_I = %f]\n Angle: %f\n}",
                     handle->g_control_config->control_type, 
-                    (double)params[0],(double)params[1],(double)params[2],(double)params[3],
+                    (double)params->k_theta, (double)params->k_p, (double)params->k_i,
                     (double)handle->g_control_config->target_angle);
             
             break;
@@ -117,8 +133,8 @@ STATIC floatsat_err_t Core_HandleCmd(floatsat_core_t *handle, floatsat_cmd_t *cm
         case CMD_ID_CONTROL_ANGLE:
             taskENTER_CRITICAL();
             memcpy(&handle->g_control_config->target_angle, &cmd->params, sizeof(float));
-            LOGI(LOG_TAG,"Set target angle to: %f",(double)handle->g_control_config->target_angle);
             taskEXIT_CRITICAL();
+            LOGI(LOG_TAG,"Set target angle to: %f",(double)handle->g_control_config->target_angle);
  
             break;
 
@@ -144,6 +160,30 @@ STATIC floatsat_err_t Core_HandleCmd(floatsat_core_t *handle, floatsat_cmd_t *cm
             GOTO_ON_ERR(Core_ResetPhotos(handle), err, ret);
 
             break;
+
+        case CMD_ID_IMU_READ: {
+            uint32_t flags = 0U;
+            memcpy(&flags, &cmd->params, sizeof(uint32_t));
+            GOTO_ON_ERR(Core_ReadIMU(handle, flags),err, ret);
+            break;
+        }
+
+        case CMD_ID_IMU_CALIBRATE: {
+            uint32_t flags = 0U;
+            memcpy(&flags, &cmd->params, sizeof(uint32_t));
+            GOTO_ON_ERR(Core_IMUCalibrate(handle, flags),err, ret);
+            break;
+        }
+            
+
+        case CMD_ID_MOTOR_PWM_SET:{
+            float val = 0.0f;
+            memcpy(&val, &cmd->params, sizeof(float));
+            GOTO_ON_ERR(Motor_SetDutyCycle(handle->motor_handle, val), err, ret);
+            LOGI(LOG_TAG,"Motor duty set to: %.4f",(double)val);
+            break;
+        }   
+            
     
 
 
@@ -175,17 +215,19 @@ STATIC floatsat_err_t Core_SetControl(floatsat_core_t *handle, floatsat_cmd_t *c
     floatsat_args_set_control_t *params = (floatsat_args_set_control_t*)cmd->params;
     
     taskENTER_CRITICAL();
-    memcpy(handle->g_control_config->params, params->control_params, sizeof(params->control_params));
+    handle->g_control_config->params.k_theta = params->control_params[0];
+    handle->g_control_config->params.k_p = params->control_params[1];
+    handle->g_control_config->params.k_i = params->control_params[2];
+
 
     if(params->control_type != CONTROL_TYPE_NO_CHANGE){
         handle->g_control_config->control_type = params->control_type;
     }
     taskEXIT_CRITICAL();
-    LOGI(LOG_TAG,"Control updated: {Type = %u. Params = [%f %f %f %f]}",
+    LOGI(LOG_TAG,"Control updated: {Type = %u. Params = [%f %f %f]}",
             handle->g_control_config->control_type,
-            (double)handle->g_control_config->params[0], (double)handle->g_control_config->params[1],
-            (double)handle->g_control_config->params[2], (double)handle->g_control_config->params[3]
-        );
+            (double)handle->g_control_config->params.k_theta, (double)handle->g_control_config->params.k_p,
+            (double)handle->g_control_config->params.k_i);
 
 
     return ERR_OK;
@@ -247,6 +289,113 @@ STATIC void Core_PrintPhotoInfo(floatsat_core_t *handle)
     
 
 
+}
+
+static floatsat_err_t Core_ReadIMU(floatsat_core_t *handle, uint32_t flags)
+{
+    if(!handle || flags == 0U){
+        return ERR_INVALID_ARG;
+    }
+    floatsat_err_t ret = ERR_OK;
+    IMU_data_raw_t data_raw = {0};
+    IMU_data_t data = {0};
+
+
+    if((flags & CMD_READ_IMU_FLAG_RAW) > 0U){
+        GOTO_ON_ERR(IMU_ReadDataRaw(handle->imu_handle, &data_raw), err, ret);
+
+        
+
+
+    }else{
+        GOTO_ON_ERR(IMU_ReadData(handle->imu_handle, &data),err, ret);
+    }
+
+    return ERR_OK;
+
+err:
+    LOGE(LOG_TAG,"Error reading IMU. Code: 0x%04x", ret);
+    return ret;
+}
+
+static floatsat_err_t Core_IMUCalibrate(floatsat_core_t *handle, uint32_t flags)
+{
+    if(!handle){
+        return ERR_INVALID_ARG;
+    }
+    floatsat_err_t ret = ERR_OK;
+
+    if(flags & CMD_IMU_CAL_FLAG_GYRO){
+        LOGI(LOG_TAG, "Starting gyroscope calibration");
+        GOTO_ON_ERR(Core_IMUCalibrate_Gyro(handle), err, ret);
+
+        LOGI(LOG_TAG, "Gyroscope calibration complete. Offsets: {%f %f %f}",
+        (double)handle->imu_handle->calibration_data.gyro_offset.x,
+        (double)handle->imu_handle->calibration_data.gyro_offset.y,
+        (double)handle->imu_handle->calibration_data.gyro_offset.z
+        );
+    }
+
+    if(flags & CMD_IMU_CAL_FLAG_ACCEL){
+        LOGI(LOG_TAG, "Starting accelerometer calibration");
+    }
+
+    if(flags & CMD_IMU_CAL_FLAG_MAG){
+        LOGI(LOG_TAG, "Starting magnetometer calibration");
+    }
+
+    if(flags == (CMD_IMU_CAL_FLAG_ACCEL | CMD_IMU_CAL_FLAG_GYRO | CMD_IMU_CAL_FLAG_MAG)){
+        handle->imu_handle->is_calibrated = true;
+    }
+
+    return ERR_OK;
+err:
+    LOGE(LOG_TAG,"Error calibrating IMU");
+    return ret;
+}
+
+static floatsat_err_t Core_IMUCalibrate_Gyro(floatsat_core_t *handle)
+{
+    if(!handle){
+        return ERR_INVALID_ARG;
+    }
+
+    IMU_data_t imu_data = {0};
+    timestamp_t last_read_ms = 0U, now_ms = 0U;
+    size_t i = 0U;
+    Vec3_t gyro_bias_avg = {0};
+
+    taskENTER_CRITICAL();
+    handle->imu_handle->calibration_data.gyro_offset = (Vec3_t){0};
+    taskEXIT_CRITICAL();
+
+    while(++i <= IMU_CAL_GYRO_SAMPLES)
+    {
+        DataBus_ReadIMU(handle->data_bus_reader, &imu_data, &now_ms);
+        if(now_ms == last_read_ms && i != 0){
+            i--; // No new IMU read, repeat the step
+            continue;
+        }
+        last_read_ms = now_ms;
+        gyro_bias_avg.x += imu_data.gyro.x;
+        gyro_bias_avg.y += imu_data.gyro.y;
+        gyro_bias_avg.z += imu_data.gyro.z;
+
+        LOGI(LOG_TAG,"Gyro sample %u / %u",i , IMU_CAL_GYRO_SAMPLES);
+        vTaskDelay(pdMS_TO_TICKS(IMU_CAL_GYRO_SAMPLE_PERIOD_MS));
+    }
+
+    gyro_bias_avg.x /= IMU_CAL_GYRO_SAMPLES;
+    gyro_bias_avg.y /= IMU_CAL_GYRO_SAMPLES;
+    gyro_bias_avg.z /= IMU_CAL_GYRO_SAMPLES;
+
+    gyro_bias_avg = Vec_SMult(&gyro_bias_avg, RADS_TO_MDPS);
+
+    taskENTER_CRITICAL();
+    handle->imu_handle->calibration_data.gyro_offset = gyro_bias_avg;
+    taskEXIT_CRITICAL();
+
+    return ERR_OK;
 }
 
 #pragma endregion

@@ -7,7 +7,11 @@
 #include "floatsat_types.h"
 #include "floatsat_err_log.h"
 
+#include "data_bus.h"
 #include "floatsat_telemetry.h"
+#include "floatsat_control.h"
+#include "floatsat_motor_controller.h"
+
 
 #define CORE_CMD_QUEUE_LEN              4
 #define CORE_MAX_PHOTO_INSTRUCTIONS     32
@@ -18,9 +22,6 @@
 
 typedef struct floatsat_core_t {
     uint8_t             mission_id; // See @mission_id
-
-    uint8_t             control_type;                       /* @control_type in floatsat_types.h*/
-    float               control_params[CONTROL_MAX_PARAMS];
 
     photo_info_t        *photo_info_arr;
     uint8_t             curr_photo_index;       // Current photo index
@@ -37,6 +38,13 @@ typedef struct floatsat_core_t {
     /* Shared resources */
     QueueHandle_t       cmd_queue;          // Receives parsed messages here
     control_config_t    *g_control_config;  // Control system config
+    
+
+    /* Handles */
+    motor_handle_t      *motor_handle;
+    IMU_handle_t        *imu_handle;
+
+    data_bus_reader_t   *data_bus_reader;
 
 }floatsat_core_t;
 

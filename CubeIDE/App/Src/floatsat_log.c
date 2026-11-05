@@ -71,20 +71,21 @@ void Log_ResetBuffer(void)
 floatsat_err_t Log_PopNextMsg(uint8_t *buffer, size_t *out_msg_size, size_t buffer_size)
 {
     // Get the length of the next message. All messages end with a NULL terminator
-    uint8_t *p = (uint8_t*)strchr((char*)&ringbuff.buffer[ringbuff.tail],'\0');
+    uint8_t *p = (uint8_t*)memchr(&ringbuff.buffer[ringbuff.tail],'\0',ringbuff.max_len - ringbuff.tail);    
 
     if(!p){
 
         // Check for wrap around
-        if(ringbuff.head < ringbuff.tail){
-            p = (uint8_t*)strchr((char*)ringbuff.buffer,'\0');
+        if(ringbuff.head < ringbuff.tail || ringbuff.full){
+            p = (uint8_t*)memchr(ringbuff.buffer,'\0',ringbuff.max_len);
+            
             if(!p){
-                // There is not a single \n character in the buffer
+                // There is not a single \0 character in the buffer
                 return ERR_INVALID_STATE;
             }
 
             size_t offset = (size_t)(p - ringbuff.buffer);
-            *out_msg_size = ringbuff.max_len - ringbuff.tail + offset;
+            *out_msg_size = ringbuff.max_len - ringbuff.tail + offset + 1U; // +1 to include the NULL byte
 
         }else{
             // No new message or invalid fromat
@@ -96,7 +97,7 @@ floatsat_err_t Log_PopNextMsg(uint8_t *buffer, size_t *out_msg_size, size_t buff
         *out_msg_size = ((size_t)(p - &ringbuff.buffer[ringbuff.tail]) + 1U);
     }
 
-    if(buffer_size < *out_msg_size){
+    if(buffer_size < *out_msg_size + 1U){ // +1U gives room for the ETX byte
         return ERR_BUFFER_OVERFLOW;
     }
 
@@ -164,12 +165,13 @@ static int ringbuff_push(ringbuff_t *buff, uint8_t *data, size_t data_len)
         }
         memcpy(&buff->buffer[buff->head], data, bytes_to_end);
         memcpy(buff->buffer, &data[bytes_to_end], data_len - bytes_to_end);
-        buff->buffer[data_len - bytes_to_end] = '\0';
+        // buff->buffer[data_len - bytes_to_end] = '\0';
     }else{
         memcpy(&buff->buffer[buff->head], data, data_len);
-        buff->buffer[buff->head + data_len] = '\0';
+        // buff->buffer[buff->head + data_len] = '\0';
     }
-    buff->head = next;
+    // Check for the edge case where next lands right after the last index 
+    buff->head = (next == buff->max_len) ? 0U : next;  
 
     buff->full = (buff->head == buff->tail);
 
@@ -178,13 +180,15 @@ static int ringbuff_push(ringbuff_t *buff, uint8_t *data, size_t data_len)
 
 static int ringbuff_pop(ringbuff_t *buff, uint8_t *data, size_t data_len)
 {
-    if(buff->head == buff->tail && !buff->full){
+    if(buff->head == buff->tail && !buff->full){ // Empty
         return -1;
     }
 
     // Amount of bytes that the buffer currently holds
     size_t buff_len = 0;
-    if(buff->head < buff->tail){
+    if(buff->full){ // head == tail
+        buff_len = buff->max_len;
+    }else if(buff->head < buff->tail){
         // The buffer has wrapped around
         buff_len = buff->max_len - (buff->tail - buff->head);
     }else{
@@ -207,7 +211,8 @@ static int ringbuff_pop(ringbuff_t *buff, uint8_t *data, size_t data_len)
     }else{
         memcpy(data, &buff->buffer[buff->tail], data_len);
     }
-    buff->tail = next;
+    buff->tail = (next == buff->max_len) ? 0U : next;
+    buff->full = false; // TODO: Is this right?
     return 0;
 
     

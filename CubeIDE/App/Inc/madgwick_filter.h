@@ -24,7 +24,9 @@ typedef struct madgwick_filter_t {
 
 floatsat_err_t Madgwick_Init(madgwick_filter_t *handle);
 
-void Madgwick_Update(madgwick_filter_t *handle, const IMU_data_t *imu);
+floatsat_err_t Madgwick_ResetOrientation(madgwick_filter_t *handle);
+
+void Madgwick_Update(madgwick_filter_t *handle, const IMU_data_t *imu, float dt);
 
 
 #endif

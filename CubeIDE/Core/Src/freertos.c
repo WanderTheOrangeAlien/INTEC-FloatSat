@@ -62,7 +62,7 @@ const osThreadAttr_t defaultTask_attributes = {
 osThreadId_t Task_TelemetryHandle;
 const osThreadAttr_t Task_Telemetry_attributes = {
   .name = "Task_Telemetry",
-  .stack_size = 128 * 4,
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal3,
 };
 /* Definitions for Task_Telecmd */
@@ -76,7 +76,7 @@ const osThreadAttr_t Task_Telecmd_attributes = {
 osThreadId_t Task_ControlHandle;
 const osThreadAttr_t Task_Control_attributes = {
   .name = "Task_Control",
-  .stack_size = 128 * 4,
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityNormal3,
 };
 /* Definitions for Task_Core */
@@ -107,6 +107,22 @@ extern void Task_CoreFn(void *argument);
 extern void Task_LogFn(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
+
+/* Hook prototypes */
+void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTaskName);
+
+/* USER CODE BEGIN 4 */
+void vApplicationStackOverflowHook(xTaskHandle xTask, signed char *pcTaskName)
+{
+   /* Run time stack overflow checking is performed if
+   configCHECK_FOR_STACK_OVERFLOW is defined to 1 or 2. This hook function is
+   called if a stack overflow is detected. */
+    (void)xTask;
+    taskDISABLE_INTERRUPTS();
+    __BKPT(0);            // debugger stops here; inspect pcTaskName
+    for(;;);
+}
+/* USER CODE END 4 */
 
 /**
   * @brief  FreeRTOS initialization

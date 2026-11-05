@@ -113,7 +113,7 @@ esp_err_t Websocket_Send(ws_handle_t *handle, uint8_t *buffer, size_t len, httpd
     }
 
     if(!handle->clients[0].connected){
-        ESP_LOGE(TAG,"Tried to send, but no client connected");
+        // ESP_LOGE(TAG,"Tried to send, but no client connected");
         return ESP_FAIL;
     }
 
@@ -122,6 +122,10 @@ esp_err_t Websocket_Send(ws_handle_t *handle, uint8_t *buffer, size_t len, httpd
         .payload = buffer,
         .type = type
     };
+
+    // TODO: since this is ansychronous, we should not "reuse" the buffer
+    // If the ws send is not finished with the current contents and the payload and the uart overwrites the buffer
+    // contents, we have a race condition. Consider copying. A memcyp of < 64 bytes is trivial
 
     httpd_ws_send_data_async(handle->server_handle, handle->clients[0].fd, 
         &frame, NULL, NULL);

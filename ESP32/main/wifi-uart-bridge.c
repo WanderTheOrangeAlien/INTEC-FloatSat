@@ -17,10 +17,10 @@ static void print_hex(uint8_t *buffer, size_t len);
 
 
 static wifi_module_config_t wifi_config = {
-    .ssid       = "La Cueva del Dragon",
-    .password   = "ElVerdeTalisman29",
-    // .ssid       = "Miguel iPhone",
-    // .password   = "Maup1234",
+    // .ssid       = "La Cueva del Dragon",
+    // .password   = "ElVerdeTalisman29",
+    .ssid       = "Miguel iPhone",
+    .password   = "Maup1234",
     .wifi_mode  = WIFI_MODE_STA
 };
 
@@ -62,19 +62,21 @@ static esp_err_t on_ws_rx(uint8_t *buffer, size_t len)
     return ESP_OK;
 }
 
+static uint32_t dbg_count = 0U; 
+
 static void on_uart_rx(uint8_t *buffer, size_t len, uint8_t packet_type)
 {
     // printf("Sending UART data through websocket. (%zu) bytes!\n",len);
     // print_hex(buffer, len);
     // printf("\n");
 
-    if(packet_type == PACKET_TYPE_INFO_CHUNK){
-        // printf("Chunk contents: \n%.*s\n",len, (char*)buffer);
-        return;
-    }
+
+
 
 #ifndef WIFI_DISABLE
-    Websocket_Send(&ws_handle, buffer, len, HTTPD_WS_TYPE_BINARY);
+    if(packet_type != PACKET_TYPE_INFO_CHUNK && packet_type != PACKET_TYPE_INFO_HEADER){
+        Websocket_Send(&ws_handle, buffer, len, HTTPD_WS_TYPE_BINARY);
+    }
 #endif
 }
 

@@ -17,7 +17,10 @@
 #include "stm32f4xx_hal.h"
 #include "floatsat_utils.h"
 
+// Calibration
 
+#define IMU_CAL_GYRO_SAMPLES            50
+#define IMU_CAL_GYRO_SAMPLE_PERIOD_MS   40
 
 #define LSM9DS1_DEV_AG              0       // Device selection for read/write
 #define LSM9DS1_DEV_MAG             1       // Device selection for read/write
@@ -99,7 +102,7 @@
 #define LSM9DS1_GYRO_ZEN_G          (1 << 5) // Enable gyroscope Z axis. CTRL_REG4
 
 // Mask for the axis enable fields in CTRL_REG4
-#define LSM9DS1_CTRL_REG4_MASK_AXIS_EN (0x03U << 3)   
+#define LSM9DS1_CTRL_REG4_MASK_AXIS_EN (LSM9DS1_GYRO_XEN_G |LSM9DS1_GYRO_YEN_G | LSM9DS1_GYRO_ZEN_G)
 
 /* @acc_axes */
 #define LSM9DS1_ACC_XEN_XL          (1 << 3) // Enable accelerometer X axis. CTRL_REG5_XL
@@ -107,7 +110,7 @@
 #define LSM9DS1_ACC_ZEN_XL          (1 << 5) // Enable accelerometer Z axis. CTRL_REG5_XL
 
 // Mask for axis enable fields in CTRL_REG5_XL
-#define LSM9DS1_CTRL_REG5_XL_MASK_AXIS_EN (0x07U << 3)
+#define LSM9DS1_CTRL_REG5_XL_MASK_AXIS_EN (LSM9DS1_ACC_XEN_XL | LSM9DS1_ACC_YEN_XL | LSM9DS1_ACC_ZEN_XL)
 
 
 #define LSM9DS1_MAG_TEMP_COMP_EN    (1 << 7) // Enable temperature compensation for magnetomer.CTRL_REG4
@@ -206,6 +209,10 @@ typedef enum LSM9DS1_mag_op_mode_t {
 }LSM9DS1_mag_op_mode_t;
 #define LSM9DS1_CTRL_REG3_M_MASK_MD  (0x03U << 0)
 
+typedef struct IMU_calibration_data_t {
+    Vec3_t gyro_offset;
+}IMU_calibration_data_t;
+
 typedef struct LSM9DS1_params_t {
     LSM9DS1_gyro_odr_t      gyro_odr;   // Gyroscope output data rate
     LSM9DS1_accel_odr_t     acc_odr;    // Accelerometer output data rate
@@ -222,6 +229,8 @@ typedef struct LSM9DS1_params_t {
     LSM9DS1_mag_op_mode_t   mag_op_mode;        // Magnetometer operating mode
 
     uint8_t                 mag_en_temp_comp;    // Enable temperature conpensation
+
+
 }LSM9DS1_params_t;
 
 typedef struct IMU_handle_t {
@@ -231,11 +240,14 @@ typedef struct IMU_handle_t {
     // Cube MX Peripheral initialization function. This is required to recover the bus
     // in case of a bus hang
     void                        (*i2c_periph_init_fn)(void);  
-    uint8_t                     i2c_sda_pin;
-    uint8_t                     i2c_scl_pin;
+    uint16_t                     i2c_sda_pin;
+    uint16_t                     i2c_scl_pin;
     GPIO_TypeDef                *i2c_gpio_peirh;
     uint8_t                     acc_gyro_address; // Accel + gyro I2C address. This is set during device search 
     uint8_t                     mag_address;       // Mag I2C address. This is set during device search
+
+    IMU_calibration_data_t      calibration_data;
+    bool                        is_calibrated;
 
 }IMU_handle_t;
 
@@ -244,6 +256,7 @@ typedef struct IMU_handle_t {
 floatsat_err_t IMU_Init(IMU_handle_t *handle);
 floatsat_err_t IMU_ReadDataRaw(IMU_handle_t *handle, IMU_data_raw_t *data);
 floatsat_err_t IMU_ReadData(IMU_handle_t *handle, IMU_data_t *data);
+floatsat_err_t IMU_CalibrateGyro(IMU_handle_t *handle);
 
 floatsat_err_t IMU_CheckParams(IMU_handle_t *handle);
 

@@ -1,6 +1,9 @@
 #include "floatsat_motor_controller.h"
+#include "task.h"
 
 static floatsat_err_t Motor_AddTimerToRegistry(motor_handle_t *handle, TIM_HandleTypeDef *timer);
+static float avgf_volatile(volatile float arr[], size_t len);
+
 
 static motor_handle_t *timer_ownership_registry[FLOATSAT_TIMER_NUM] = {0};
 
@@ -13,18 +16,19 @@ floatsat_err_t Motor_Init(motor_handle_t *handle)
         return ERR_INVALID_ARG;
     }
 
-    if(!handle->encoder_timer || !handle->pwm_timer || !handle->encoder_sampling_timer
-        || handle->encoder_sampling_period_ms == 0){
+    if(!handle->encoder_timer || !handle->pwm_timer){
         return ERR_INVALID_ARG;
     }
     // Add all times to registry
     floatsat_err_t ret = ERR_OK;
     GOTO_ON_ERR(Motor_AddTimerToRegistry(handle, handle->pwm_timer),err, ret);
     GOTO_ON_ERR(Motor_AddTimerToRegistry(handle, handle->encoder_timer),err, ret);
-    GOTO_ON_ERR(Motor_AddTimerToRegistry(handle, handle->encoder_sampling_timer),err, ret);
-
-
+    GOTO_ON_ERR(Motor_AddTimerToRegistry(handle, handle->encoder_sampling_timer), err, ret);
     Motor_Stop(handle);
+
+    HAL_TIM_Encoder_Start(handle->encoder_timer, TIM_CHANNEL_1);
+    HAL_TIM_Encoder_Start(handle->encoder_timer, TIM_CHANNEL_2);
+    HAL_TIM_Base_Start_IT(handle->encoder_sampling_timer);
 
     LOGI(LOG_TAG,"Initialization succesful");
     return ERR_OK;
@@ -36,7 +40,7 @@ err:
 
 floatsat_err_t Motor_SetDutyCycle(motor_handle_t *handle, float duty)
 {
-    if(!handle || duty > 1.0f || duty < -1.0f){
+    if(!handle || !(duty >= -1.0f && duty <= 1.0f)){
         return ERR_INVALID_ARG;
     }
 
@@ -99,9 +103,34 @@ floatsat_err_t Motor_Stop(motor_handle_t *handle)
 
 floatsat_err_t Motor_GetSpeed(motor_handle_t *handle, float *out_speed)
 {
-    UNUSED(handle);
-    UNUSED(out_speed);
+    if(!handle || !out_speed){
+        return ERR_INVALID_ARG;
+    }
+    #pragma message "Not implemented!"
+
     return ERR_NOT_IMPLEMENTED;
+}
+
+static floatsat_err_t Motor_UpdateSpeed(motor_handle_t *handle, float dt)
+{
+    if(!handle){
+        return ERR_INVALID_ARG;
+    }
+    uint16_t count = (uint16_t)__HAL_TIM_GET_COUNTER(handle->encoder_timer);
+    int16_t delta_count = (int16_t)(count - handle->last_encoder_count);
+    
+    // // rev/s = (counts / (counts/rev)) / (ms * (s/us))
+    handle->speed_window[handle->speed_window_idx] =
+        ((float)delta_count / (float)MOTOR_CPR) / (dt);
+
+    handle->speed_window_idx = (uint8_t)( (handle->speed_window_idx + 1U) % MOTOR_SPEED_WIN_SIZE);  
+    
+    handle->current_speed = avgf_volatile(handle->speed_window, MOTOR_SPEED_WIN_SIZE);
+
+
+    handle->last_encoder_count = count;
+
+    return ERR_OK;
 }
 
 static floatsat_err_t Motor_AddTimerToRegistry(motor_handle_t *handle, TIM_HandleTypeDef *timer)
@@ -120,8 +149,10 @@ static floatsat_err_t Motor_AddTimerToRegistry(motor_handle_t *handle, TIM_Handl
     return ERR_OK;
 }
 
+
 void Motor_Cb_EncoderSampler(TIM_HandleTypeDef *tim)
 {
+    UNUSED(tim);
     int index = Util_TIM2Index(tim->Instance);
     if(index < 0){
         LOGE(LOG_TAG, "HOW?");
@@ -133,13 +164,33 @@ void Motor_Cb_EncoderSampler(TIM_HandleTypeDef *tim)
         return;
     }
 
-    uint16_t count =(uint16_t)__HAL_TIM_GET_COUNTER(tim);
-    // This casting handles the underflow/overflow. Unit: counts
-    int16_t delta = (int16_t)(count - handle->last_encoder_count); 
+    // TOOD: We could optimize the 1e-3f multiplication by storing the period in seconds
+    Motor_UpdateSpeed(handle,(float)handle->encoder_sampling_period_ms * 1e-3f);
+
+    // uint16_t count =(uint16_t)__HAL_TIM_GET_COUNTER(tim);
+    // // This casting handles the underflow/overflow. Unit: counts
+    // int16_t delta = (int16_t)(count - handle->last_encoder_count); 
     
-    // rev/s = (counts / (counts/rev)) / ms * (ms/s)
-    handle->current_speed = ((float)delta/MOTOR_CPR) / (float)handle->encoder_sampling_period_ms * 1000U;
+    // // rev/s = (counts / (counts/rev)) / ms * (ms/s)
+    // handle->current_speed = ((float)delta/MOTOR_CPR) / (float)handle->encoder_sampling_period_ms * 1000.0f;
+    // handle->last_encoder_count = count;
 
-    handle->last_encoder_count = count;  
+    // if(handle->current_speed  > -0.01f && handle->current_speed < 0.01f){
+    // 	__asm volatile ("nop");
+    // }
 
+}
+
+// TEST: Write an unit test for this function
+
+static float avgf_volatile(volatile float arr[], size_t len)
+{
+    float sum = 0.0f;
+
+    for (size_t i = 0; i < len; i++){
+        sum += arr[i];
+    }
+    
+
+    return sum / (float)len;
 }

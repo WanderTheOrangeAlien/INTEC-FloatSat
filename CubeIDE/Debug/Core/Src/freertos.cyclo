@@ -1,2 +1,3 @@
-../Core/Src/freertos.c:116:6:MX_FREERTOS_Init	1
-../Core/Src/freertos.c:177:6:StartDefaultTask	1
+../Core/Src/freertos.c:115:6:vApplicationStackOverflowHook	1
+../Core/Src/freertos.c:132:6:MX_FREERTOS_Init	1
+../Core/Src/freertos.c:193:6:StartDefaultTask	1

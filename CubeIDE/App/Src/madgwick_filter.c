@@ -1,6 +1,7 @@
 #include "madgwick_filter.h"
 
 #include <string.h>
+#include "vec_math.h"
 
 
 /* C implementation of the Madgwick filter taken from the original paper:
@@ -14,7 +15,7 @@ Modified a little bit to adapt to the project's architecture
 floatsat_err_t Madgwick_Init(madgwick_filter_t *handle)
 {
     if(!handle){
-        return ERR_OK;
+        return ERR_INVALID_ARG;
     }
 
     memset(handle,0,sizeof(madgwick_filter_t));
@@ -24,6 +25,19 @@ floatsat_err_t Madgwick_Init(madgwick_filter_t *handle)
     return ERR_OK;
 }
 
+/// @brief Resets the orientation quaternion `Seq` and the reference diretion of Earth's flux `b`, but keeps the gyro bias `w_b` 
+/// @param handle Pointer to mdgwick filter handle
+/// @return `ERR_INVALID_ARG` if `handle` is NULL. `ERR_OK` otherwise
+floatsat_err_t Madgwick_ResetOrientation(madgwick_filter_t *handle)
+{
+    if(!handle){
+        return ERR_INVALID_ARG;
+    }
+
+    handle->SEq = QUATERNION_IDENTITY();
+    handle->b   = (Vec3_t){0};
+    return ERR_OK;
+}
 
 // Global system variables
 // float a_x, a_y, a_z; // accelerometer measurements
@@ -36,7 +50,11 @@ floatsat_err_t Madgwick_Init(madgwick_filter_t *handle)
 // float f->b.x = 1, f->b.z = 0; // reference direction of flux in earth frame
 // float f->w_b.x = 0, f->w_b.y = 0, f->w_b.z = 0; // estimate gyroscope biases error
 
-void Madgwick_Update(madgwick_filter_t *f, const IMU_data_t *imu)
+/// @brief Update the Madgwick filter
+/// @param f Pointer to filter instance
+/// @param imu Pointer to IMU data struct
+/// @param dt Delta t since last read in seconds
+void Madgwick_Update(madgwick_filter_t *f, const IMU_data_t *imu, float dt)
 {
     float a_x = imu->accel.x,   a_y = imu->accel.y,     a_z = imu->accel.z;
 
@@ -134,9 +152,9 @@ void Madgwick_Update(madgwick_filter_t *f, const IMU_data_t *imu)
     w_err_y = twoSEq_1 * SEqHatDot_3 + twoSEq_2 * SEqHatDot_4 - twoSEq_3 * SEqHatDot_1 - twoSEq_4 * SEqHatDot_2;
     w_err_z = twoSEq_1 * SEqHatDot_4 - twoSEq_2 * SEqHatDot_3 + twoSEq_3 * SEqHatDot_2 - twoSEq_4 * SEqHatDot_1;
     // compute and remove the gyroscope baises
-    f->w_b.x += w_err_x * MADGWICK_DELTA_T * MADGWICK_ZETA;
-    f->w_b.y += w_err_y * MADGWICK_DELTA_T * MADGWICK_ZETA;
-    f->w_b.z += w_err_z * MADGWICK_DELTA_T * MADGWICK_ZETA;
+    f->w_b.x += w_err_x * dt * MADGWICK_ZETA;
+    f->w_b.y += w_err_y * dt * MADGWICK_ZETA;
+    f->w_b.z += w_err_z * dt * MADGWICK_ZETA;
     w_x -= f->w_b.x;
     w_y -= f->w_b.y;
     w_z -= f->w_b.z;
@@ -146,10 +164,10 @@ void Madgwick_Update(madgwick_filter_t *f, const IMU_data_t *imu)
     SEqDot_omega_3 = halfSEq_1 * w_y - halfSEq_2 * w_z + halfSEq_4 * w_x;
     SEqDot_omega_4 = halfSEq_1 * w_z + halfSEq_2 * w_y - halfSEq_3 * w_x;
     // compute then integrate the estimated quaternion rate
-    f->SEq.a += (SEqDot_omega_1 - (MADGWICK_BETA * SEqHatDot_1)) * MADGWICK_DELTA_T;
-    f->SEq.b += (SEqDot_omega_2 - (MADGWICK_BETA * SEqHatDot_2)) * MADGWICK_DELTA_T;
-    f->SEq.c += (SEqDot_omega_3 - (MADGWICK_BETA * SEqHatDot_3)) * MADGWICK_DELTA_T;
-    f->SEq.d += (SEqDot_omega_4 - (MADGWICK_BETA * SEqHatDot_4)) * MADGWICK_DELTA_T;
+    f->SEq.a += (SEqDot_omega_1 - (MADGWICK_BETA * SEqHatDot_1)) * dt;
+    f->SEq.b += (SEqDot_omega_2 - (MADGWICK_BETA * SEqHatDot_2)) * dt;
+    f->SEq.c += (SEqDot_omega_3 - (MADGWICK_BETA * SEqHatDot_3)) * dt;
+    f->SEq.d += (SEqDot_omega_4 - (MADGWICK_BETA * SEqHatDot_4)) * dt;
     // normalise quaternion
     norm = sqrtf(f->SEq.a * f->SEq.a + f->SEq.b * f->SEq.b + f->SEq.c * f->SEq.c + f->SEq.d * f->SEq.d);
     f->SEq.a /= norm;
@@ -169,5 +187,9 @@ void Madgwick_Update(madgwick_filter_t *f, const IMU_data_t *imu)
     // normalise the flux vector to have only components in the x and z
     f->b.x = sqrtf((h_x * h_x) + (h_y * h_y));
     f->b.z = h_z;
+
+    if(Quaternion_ContainsNaN(&f->SEq)){
+        __asm volatile ("nop");
+    }
 
 }

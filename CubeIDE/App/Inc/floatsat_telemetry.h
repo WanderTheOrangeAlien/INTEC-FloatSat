@@ -23,10 +23,13 @@
 #define PACKET_TYPE_EXTENDED        1   // Orientation plus all sensors and subsystem health
 #define PACKET_TYPE_INFO_HEADER     2
 #define PACKET_TYPE_INFO_CHUNK      3
+#define PACKET_TYPE_DEBUG           4
+
 
 #define PACKET_MASK_FAST            (1U << 0U)
 #define PACKET_MASK_SLOW            (1U << 1U)
 #define PACKET_MASK_INFO            (1U << 2U)
+#define PACKET_MASK_DEBUG           (1U << 3U)
 
 #define INFO_STATE_START            0U /* New info has been written. Construct the header and divide in chunks */
 #define INFO_STATE_TX               1U /* Transmitting. The info buffer is read and chunks are constructed and sent */
@@ -36,6 +39,8 @@
 #define INFO_CHUNK_TIME_MARGIN_US   100U        // Microseconds of margin to leave before task switch is performed
 #define INFO_CHUNK_RX_TIME_US       (80U*2U)    // Estimated time needed for sending a chunk.   
 
+#define DEBUG_PACKET_ID_IMU         0x00
+#define DEBUG_PACKET_ID_CONTROL     0x01
 
 typedef struct __attribute__((packed)) telemetry_packet_fast_t {
     Vec3_t orientation;
@@ -51,14 +56,23 @@ typedef struct __attribute__((packed)) telemetry_packet_slow_t {
 
 }telemetry_packet_slow_t;
 
+typedef struct __attribute__((packed)) telemetry_packet_debug_t {
+    uint8_t type;
+    uint8_t debug_id;
+    union {
+        IMU_data_t      imu_data;
+        control_data_t  control_data;
+    };
+    
+}telemetry_packet_debug_t;
+
 typedef struct __attribute__((packed)) telemetry_packet_t {
     uint8_t type;                 // Thsi is written by the telemetry task based on the packet type flags
     timestamp_t timestamp;
       
     telemetry_packet_fast_t fast; // Orientaiton and reaction wheel speed
     
-    telemetry_packet_slow_t slow; // Other Onboard sensors and health indicators 
-
+    telemetry_packet_slow_t slow; // Other Onboard sensors and health indicators
 }telemetry_packet_t;
 
 typedef struct __attribute__((packed)) info_packet_header_t {
@@ -67,7 +81,6 @@ typedef struct __attribute__((packed)) info_packet_header_t {
     uint8_t nchunks;
     uint8_t last_chunk_size;
     uint16_t crc;
-
 }info_packet_header_t;
 
 typedef struct __attribute__((packed)) info_packet_chunk_t {
@@ -87,6 +100,7 @@ typedef struct telemetry_handle_t {
 
     volatile uint8_t packet_type_mask;    // Bit mask indicating which types of packets must be sent.
     telemetry_packet_t current_packet;
+    telemetry_packet_debug_t debug_packet;
     volatile bool tx_busy;
 
     uint8_t info_state;                 // State for the info transmission state machine
@@ -110,7 +124,7 @@ floatsat_err_t Telemetry_Init(telemetry_handle_t *handle);
 
 floatsat_err_t Telemetry_AddFast(telemetry_handle_t *handle, telemetry_packet_fast_t *packet);
 floatsat_err_t Telemetry_AddSlow(telemetry_handle_t *handle, telemetry_packet_slow_t *packet);
-// floatsat_err_t Telemetry_AddInfo(telemetry_handle_t *handle, )
+floatsat_err_t Telemetry_AddDebug(telemetry_handle_t *handle, telemetry_packet_debug_t *packet);
 
 floatsat_err_t Telemetry_GiveInfoBuffer(telemetry_handle_t *handle, uint8_t **ptr);
 floatsat_err_t Telemetry_TakeInfoBuffer(telemetry_handle_t *handle, uint8_t **out_ptr);

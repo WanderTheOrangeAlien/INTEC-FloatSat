@@ -7,6 +7,8 @@
 static TraceStringHandle_t xStrLogger;
 #endif
 
+static const char LOG_TAG[] = "LOGGER";
+
 __attribute__((noreturn))
 void Task_LogFn(void *params)
 {
@@ -57,16 +59,19 @@ void Task_LogFn(void *params)
 
         
 
-        if(ret == ERR_BUFFER_OVERFLOW){
+        if(ret != ERR_OK){
             // The buffer is full, wait for the telemetry task to consume it. Release it so telemetry can use it
 #ifdef TRACE
-            xTracePrint(xStrLogger, "Buffer full");
+            if(ret == ERR_BUFFER_OVERFLOW){
+                xTracePrint(xStrLogger, "Buffer full");
+            }
 #endif
             xTaskNotify(xTaskGetCurrentTaskHandle(), 1U, eIncrement);
             Telemetry_GiveInfoBuffer(telemetry_handle, &info_buffer);
             vTaskDelay(INFO_BUFFER_WAIT_DELAY_TICKS);
             continue;
             // Report the buffer full error
+            LOGW(LOG_TAG,"Log buffer overflow");
         }
 
         if(n_pending_msg == 0){

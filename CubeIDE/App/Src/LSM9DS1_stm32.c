@@ -6,11 +6,14 @@
   *
   ******************************************************************************
 **/
+#include <string.h>
 
 #include "LSM9DS1_stm32.h"
 #include "vec_math.h"
 #include "floatsat_log.h"
 
+#include "FreeRTOS.h"
+#include "task.h"
 /*
 Notes
 
@@ -76,7 +79,7 @@ static const char *LOG_TAG = "IMU";
 static const uint8_t known_addresses[] = {0x6A, 0x6B, 0x1E, 0x1C};
 static uint8_t n_known_addresses = (uint8_t)sizeof(known_addresses);
 
-// Accelerometer conversion factors mg/LSB
+// Accelerometer conversion factors mg/LSB. Table 3 from datasheet
 static const float ACC_CONV_FACTORS[] = {
     0.061f,     // 2g
     0.732f,     // 16g
@@ -84,14 +87,14 @@ static const float ACC_CONV_FACTORS[] = {
     0.244f      // 8g
 };
 
-// Gyroscope conversion factors mdps/LSB (milii-degree per second)
+// Gyroscope conversion factors mdps/LSB (milii-degree per second). Table 3 from datasheet
 static const float GYRO_CONV_FACTORS[] = {
     8.750f,      // 245 dps
-    11.500f,     // 500 dps
+    17.500f,     // 500 dps
     70.000f      // 2000 dps
 };
 
-// Magnetometer conversion factors mgauss/LSB
+// Magnetometer conversion factors mgauss/LSB. Table 3 from datasheet
 static const float MAG_CONV_FACTORS[] = {
     0.140f,     // 4 gauss
     0.290f,     // 8 gauss
@@ -123,6 +126,51 @@ floatsat_err_t IMU_Init(IMU_handle_t *handle)
     }
 
     return ERR_OK;
+}
+
+/// @brief Calibrate gyroscope by averaging the error bias through `IMU_CAL_GYRO_SAMPLES` samples
+/// This calibration assumes that the floatsat is stationary
+/// @param handle IMU handle
+/// @return 
+floatsat_err_t IMU_CalibrateGyro(IMU_handle_t *handle)
+{
+    // TODO: Detect if there was a motion while calibrating (check if difference between min and max reads
+    // exceeds a thershold)
+
+    if(!handle){
+        return ERR_INVALID_ARG;
+    }
+
+    Vec3_t gyro_sample_avg = {0};
+    IMU_data_t data = {0};
+    floatsat_err_t ret = ERR_OK;
+
+    // Reset offsets
+    handle->calibration_data.gyro_offset = (Vec3_t){0};
+
+    for (size_t i = 0; i < IMU_CAL_GYRO_SAMPLES; i++)
+    {
+    	LOGI(LOG_TAG,"Sample %u/%u",i,IMU_CAL_GYRO_SAMPLES);
+        GOTO_ON_ERR(IMU_ReadData(handle, &data),err,ret);
+        gyro_sample_avg.x += data.gyro.x;
+        gyro_sample_avg.y += data.gyro.y;
+        gyro_sample_avg.z += data.gyro.z;
+        vTaskDelay(pdMS_TO_TICKS(IMU_CAL_GYRO_SAMPLE_PERIOD_MS));
+    }
+    
+    gyro_sample_avg.x /= (float)IMU_CAL_GYRO_SAMPLES;
+    gyro_sample_avg.y /= (float)IMU_CAL_GYRO_SAMPLES;
+    gyro_sample_avg.z /= (float)IMU_CAL_GYRO_SAMPLES;
+
+    taskENTER_CRITICAL();
+    handle->calibration_data.gyro_offset = gyro_sample_avg;
+    taskEXIT_CRITICAL();
+
+    return ERR_OK;
+err:
+
+    return ret;
+
 }
 
 
@@ -308,14 +356,25 @@ err:
 
 floatsat_err_t IMU_ReadData(IMU_handle_t *handle, IMU_data_t *data)
 {
-    IMU_data_raw_t data_raw = {0};
-    floatsat_err_t ret = IMU_ReadDataRaw(handle,&data_raw);
-
-    if(ret != ERR_OK){
-        return ret;
+    if(!handle || !data){
+        return ERR_INVALID_ARG;
     }
 
-    return IMU_ConvertRaw(handle,&data_raw,data);
+    IMU_data_raw_t data_raw = {0};
+    floatsat_err_t ret;
+    GOTO_ON_ERR(IMU_ReadDataRaw(handle,&data_raw),err, ret);
+    GOTO_ON_ERR(IMU_ConvertRaw(handle,&data_raw,data),err, ret);
+
+    // Gyro bias
+    data->gyro.x -= handle->calibration_data.gyro_offset.x;
+    data->gyro.y -= handle->calibration_data.gyro_offset.y;
+    data->gyro.z -= handle->calibration_data.gyro_offset.z;
+
+    return ERR_OK;
+err:
+    memset(data,0,sizeof(IMU_data_t));
+    return ret;
+
 }
 
 /// @brief Convert raw readings to physical units depending on the device scale settings
@@ -588,6 +647,7 @@ static floatsat_err_t i2c_bus_recover(IMU_handle_t *handle)
     HAL_Delay(1);
 
 
+    // TODO: Make a generic function for the I2C reset
     __HAL_RCC_I2C1_FORCE_RESET();
     __HAL_RCC_I2C1_RELEASE_RESET();
 

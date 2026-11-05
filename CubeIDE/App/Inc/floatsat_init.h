@@ -5,6 +5,7 @@
 
 #include "floatsat_err_log.h"
 
+#include "data_bus.h"
 #include "LSM9DS1_stm32.h"
 #include "madgwick_filter.h"
 #include "floatsat_telecommand.h"
@@ -26,8 +27,8 @@ typedef struct floatsat_periph_t {
     // Functions and other info
 
     void                    (*i2c_init_fn)(void);
-    uint8_t                 i2c_sda_pins[N_I2C];
-    uint8_t                 i2c_scl_pins[N_I2C];
+    uint16_t                 i2c_sda_pins[N_I2C]; // One pin per bit
+    uint16_t                 i2c_scl_pins[N_I2C]; // One pin per bit
     GPIO_TypeDef            *i2c_gpio;
 
 }floatsat_periph_t;

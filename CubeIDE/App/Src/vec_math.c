@@ -1,5 +1,4 @@
 #include "vec_math.h"
-#include "math.h"
 
 Vec3_t Vec_SMult(const Vec3_t *vec, float scalar)
 {
@@ -8,6 +7,11 @@ Vec3_t Vec_SMult(const Vec3_t *vec, float scalar)
         .y = vec->y * scalar,
         .z = vec->z * scalar,
     };
+}
+
+float Vec_GetAzimuth(const Vec3_t *vec)
+{
+    return atan2f(vec->y, vec->x);
 }
 
 Quaternion_t Quaternion_SMult(const Quaternion_t *q, float s)
@@ -65,6 +69,11 @@ Quaternion_t Quaternion_Conj(const Quaternion_t *q)
     };
 }
 
+bool Quaternion_ContainsNaN(const Quaternion_t *q)
+{
+    return isnan(q->a) || isnan(q->b) || isnan(q->c) || isnan(q->d);
+}
+
 /// @brief Rotate vector using the rotation described by a quaternion
 /// @param vec Vector to rotate
 /// @param q Rotation quaternion (Must be an unit quaternion)
@@ -84,4 +93,33 @@ Vec3_t Vec3_Rotate(const Vec3_t *v, const Quaternion_t *q)
     };
 
     
+}
+
+
+float wrap_180(float in)
+{
+    float a = fmodf(in, 360.0f);
+
+    if(a > 180.0f){
+        a -= 360.0f;
+    }else if(a <= -180.0f){
+        a += 360.0f;
+    }
+
+    return a;
+}
+
+/// @brief Clamps `in` in the range [`-limit`,`limit`] 
+/// @param in 
+/// @param limit 
+/// @return 
+float saturate_symmetric(float in, float limit)
+{
+    if(in > limit){
+        return limit;
+    }else if(in < -limit){
+        return -limit;
+    }else{
+        return in;
+    }
 }

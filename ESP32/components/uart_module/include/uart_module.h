@@ -17,6 +17,7 @@
 #define PACKET_TYPE_EXTENDED        1   // Orientation plus all sensors and subsystem health
 #define PACKET_TYPE_INFO_HEADER     2
 #define PACKET_TYPE_INFO_CHUNK      3
+#define PACKET_TYPE_DEBUG           4
 
 #define INFO_CHUNK_DATA_SIZE        32U
 

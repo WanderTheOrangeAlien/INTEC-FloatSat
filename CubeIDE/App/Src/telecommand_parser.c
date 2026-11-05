@@ -24,6 +24,8 @@ static int cmd_init_control(void);
 static int cmd_init_mission(void);
 static int cmd_init_photo(void);
 static int cmd_init_imu(void);
+static int cmd_init_motor(void);
+
 
 static const char *LOG_TAG = "CMD_PARSER";
 
@@ -51,6 +53,7 @@ static struct {
     struct arg_dbl *angle;
     struct arg_end *end;
 }argtable_control_angle;
+
 
 /* =========================== Mission command =========================== */
 // Format: misson -i
@@ -100,11 +103,21 @@ static struct {
     struct arg_end *end;
 }argtable_imu_read;
 
+// Format imu cal [-g -a -m]
+
+static struct {
+    struct arg_rex *subcmd;
+    struct arg_lit *opts_gyro;
+    struct arg_lit *opts_accel;
+    struct arg_lit *opts_mag;
+    struct arg_end *end;
+}argtable_imu_cal;
+
 /* =========================== motor command =========================== */
 // Format motor pwm <pwm_val>
 static struct {
     struct arg_rex *subcmd;
-    struct arg_int *pwm_val;
+    struct arg_dbl *pwm_val;
     struct arg_end *end;
 }argtable_motor_pwn;
 
@@ -132,6 +145,7 @@ floatsat_err_t CmdParser_Init(parser_ctx_t *ctx)
     cmd_init_mission();
     cmd_init_photo();
     cmd_init_imu();
+    cmd_init_motor();
 
     return ERR_OK;
 }
@@ -235,6 +249,23 @@ static int cmd_init_imu(void)
     argtable_imu_read.opts_acc          =   arg_lit0("a","acc","Include accelerometer readings");
     argtable_imu_read.opts_mag          =   arg_lit0("m","mag","Include magnetometer readings");
     argtable_imu_read.opts_filter       =   arg_lit0("f","filter","Include Madgwick filter estimation");
+
+
+    // Format imu cal [-g -a -m]
+    argtable_imu_cal.subcmd             = arg_rex1(NULL, NULL, "cal", NULL, ARG_REX_ICASE, "Calibrate IMU");
+    argtable_imu_cal.opts_gyro          = arg_lit0("g","gyro","Calibrate gyroscope");
+    argtable_imu_cal.opts_accel         = arg_lit0("a","accel","Calibrate accelerometer");
+    argtable_imu_cal.opts_mag           = arg_lit0("m","mag","Calibrate magnetometer");
+    argtable_imu_cal.end                = arg_end(CMD_MAX_ERRORS);
+
+    return 0;
+}
+
+static int cmd_init_motor(void)
+{
+    argtable_motor_pwn.subcmd           =   arg_rex1(NULL, NULL, "pwm", NULL, ARG_REX_ICASE, "Set a pwm output to the motor [0-1]");
+    argtable_motor_pwn.pwm_val          =   arg_dbl1(NULL, NULL, "float", "PWM value [0-1]");
+    argtable_motor_pwn.end              =   arg_end(CMD_MAX_ERRORS);
 
     return 0;
 }
@@ -410,15 +441,8 @@ static floatsat_err_t parse_cmd_photo(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
     int nerrors_arr[CMD_PHOTO_N_SUBCMD] = {0};
 
     nerrors_arr[0] = arg_parse(ctx->argc, ctx->argv, (void**)&argtable_photo_info);
-
     nerrors_arr[1] = arg_parse(ctx->argc, ctx->argv, (void**)&argtable_photo_add);
-
     nerrors_arr[2] = arg_parse(ctx->argc, ctx->argv, (void**)&argtable_photo_reset);
-
-
-    nerrors_arr[0] = 10;
-    nerrors_arr[1] = 10;
-    nerrors_arr[2] = 10;
 
     if(!nerrors_arr[0]){
         // Format: photo -i
@@ -476,13 +500,94 @@ static floatsat_err_t parse_cmd_imu(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
         return ERR_INVALID_ARG;
     }
 
+    int nerrors_arr[2] = {0};
+
+    nerrors_arr[0] = arg_parse(ctx->argc, ctx->argv, (void**)&argtable_imu_read);
+    nerrors_arr[1] = arg_parse(ctx->argc, ctx->argv, (void**)&argtable_imu_cal);
+
+    if(!nerrors_arr[0]){
+        uint32_t flags = 0U;
+
+        cmd->cmd_id = CMD_ID_IMU_READ;
+
+        if(argtable_imu_read.opts_gyro->count > 0){
+            flags |= CMD_READ_IMU_FLAG_GYRO;
+        }
+
+        if(argtable_imu_read.opts_acc->count > 0){
+            flags |= CMD_READ_IMU_FLAG_ACCEL;
+        }
+
+        if(argtable_imu_read.opts_mag->count > 0){
+            flags |= CMD_READ_IMU_FLAG_MAG;
+        }
+
+        if(argtable_imu_read.opts_raw->count > 0){
+            flags |= CMD_READ_IMU_FLAG_RAW;
+        }
+
+        if(argtable_imu_read.opts_filter->count > 0){
+            flags |= CMD_READ_IMU_FLAG_FILTER;
+        }
+
+        memcpy(&cmd->params, &flags, sizeof(uint32_t));
+
+    }else if(!nerrors_arr[1]){
+        cmd->cmd_id = CMD_ID_IMU_CALIBRATE;
+        uint32_t flags = 0U;
+        if(argtable_imu_cal.opts_gyro->count > 0){
+            flags |= CMD_IMU_CAL_FLAG_GYRO;
+        }
+
+        if(argtable_imu_cal.opts_accel->count > 0){
+            flags |= CMD_IMU_CAL_FLAG_ACCEL;
+        }
+
+        if(argtable_imu_cal.opts_mag->count > 0){
+            flags |= CMD_IMU_CAL_FLAG_MAG;
+        }
+        memcpy(&cmd->params, &flags, sizeof(uint32_t));
+
+    }else{
+        return ERR_INVALID_CMD;
+    }
+
 
     return ERR_OK;
 }
 
 static floatsat_err_t parse_cmd_motor(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
 {
-    if(!ctx ||)
+    if(!ctx || !cmd){
+        return ERR_INVALID_ARG;
+    }
+
+    int nerrors_arr[2] = {0};
+
+    *cmd = (floatsat_cmd_t){0};
+
+    nerrors_arr[0] = arg_parse(ctx->argc, ctx->argv, (void**)&argtable_motor_pwn);
+
+    if(!nerrors_arr[0]){
+        cmd->cmd_id = CMD_ID_MOTOR_PWM_SET;
+
+        if(argtable_motor_pwn.pwm_val->count > 0){
+            float val = (float)argtable_motor_pwn.pwm_val->dval[0];
+
+            if(!(val >= -1.0f && val <= 1.0f)){
+                return ERR_INVALID_CMD;
+            }
+
+            memcpy(&cmd->params, &val, sizeof(float));
+        }else{
+            cmd->params = NULL;
+        }
+
+    }else{
+        return ERR_INVALID_CMD;
+    }
+    
+    return ERR_OK;
 }
 
 #pragma endregion

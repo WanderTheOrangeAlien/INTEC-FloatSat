@@ -2,6 +2,8 @@
 #define INC_FLOATSAT_TYPES_H
 
 #include <stdint.h>
+#include <stdbool.h>
+#include <stddef.h>
 
 #include "floatsat_defs.h"
 #include "test_defs.h"
@@ -39,11 +41,25 @@ typedef uint64_t timestamp_t;
 
 
 /// Configuration parameters for the control system. These are changed by the Core in response to commands.
-typedef struct control_config_t {
-    float   params[CONTROL_MAX_PARAMS];
-    float   target_angle;
-    uint8_t control_type;
+typedef struct control_cascade_params_t {
+    float k_theta;
+    float k_p;
+    float k_i;
+}control_cascade_params_t;
 
+typedef struct __attribute__((packed)) control_data_t {
+    timestamp_t timestamp;
+    float       angle;
+    float       angle_ref;
+    float       w;
+    float       w_ref;
+    float       pwm_out;
+}control_data_t;
+
+typedef struct control_config_t {
+    float                       target_angle;
+    control_cascade_params_t    params;
+    uint8_t                     control_type;
 }control_config_t;
 
 
@@ -64,6 +80,23 @@ typedef struct control_config_t {
 #define CMD_ID_PHOTO_INFO       ((uint8_t)0x30)
 #define CMD_ID_PHOTO_ADD        ((uint8_t)0x31)    // Uses malloc
 #define CMD_ID_PHOTO_RESET      ((uint8_t)0x32)
+
+#define CMD_ID_IMU_READ         ((uint8_t)0x40)
+#define CMD_ID_IMU_CALIBRATE    ((uint8_t)0x41)
+
+#define CMD_ID_MOTOR_PWM_SET    ((uint8_t)0x50)
+
+
+
+#define CMD_READ_IMU_FLAG_ACCEL     (1U << 0)
+#define CMD_READ_IMU_FLAG_GYRO      (1U << 1)
+#define CMD_READ_IMU_FLAG_MAG       (1U << 2)
+#define CMD_READ_IMU_FLAG_RAW       (1U << 3)
+#define CMD_READ_IMU_FLAG_FILTER    (1U << 4)
+
+#define CMD_IMU_CAL_FLAG_ACCEL      (1U << 0)
+#define CMD_IMU_CAL_FLAG_GYRO       (1U << 1)
+#define CMD_IMU_CAL_FLAG_MAG        (1U << 2)
 
 
 typedef struct floatsat_cmd_t {

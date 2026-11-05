@@ -12,6 +12,7 @@
 **/
 
 #include "floatsat_init.h"
+#include "data_bus_priv.h"
 static const char *LOG_TAG = "INIT";
 
 /* ============================= Module handles ============================= */
@@ -59,18 +60,27 @@ static telemetry_handle_t telemetry_handle = {0};
 /* -------------- Madgwick filter -------------- */
 static madgwick_filter_t madgwick_filter = {0};
 
-/* -------------- Core -------------- */
-static photo_info_t photo_info_arr[CORE_MAX_PHOTO_INSTRUCTIONS] = {0}; 
-static control_config_t g_control_config = {0};
 
-static floatsat_core_t core_handle = {
-    .photo_info_arr = photo_info_arr,
-    .telementry_handle = &telemetry_handle,
-    .g_control_config = &g_control_config,
-};
 
 /* -------------- Motor -------------- */
 static motor_handle_t motor_handle = {0};
+
+
+/* -------------- Core -------------- */
+static photo_info_t photo_info_arr[CORE_MAX_PHOTO_INSTRUCTIONS] = {0}; 
+static control_config_t g_control_config = {0};
+static data_bus_reader_t core_data_bus_reader = {0};
+
+static floatsat_core_t core_handle = {
+    .photo_info_arr     = photo_info_arr,
+    .telementry_handle  = &telemetry_handle,
+    .g_control_config   = &g_control_config,
+
+    .motor_handle       = &motor_handle,
+    .imu_handle         = &IMU_handle,
+    .data_bus_reader    = &core_data_bus_reader,
+};
+
 
 /* -------------- Control -------------- */
 static control_handle_t control_handle = {
@@ -78,7 +88,8 @@ static control_handle_t control_handle = {
     .madgwick           = &madgwick_filter,
     .telemetry_handle   = &telemetry_handle,
     .motor              = &motor_handle,
-    .g_control_config   = &g_control_config
+    .g_control_config   = &g_control_config,
+	.debug_packet_id	= DEBUG_PACKET_ID_CONTROL,
 };
 
 
@@ -99,13 +110,12 @@ floatsat_err_t FloatSat_Init(const floatsat_periph_t *periph,
     if(!periph){
         return ERR_INVALID_ARG;
     }
-    floatsat_err_t ret = ERR_OK;
-    
+    floatsat_err_t ret = ERR_OK;    
 
-    // FreeRTOS objects MUST be initialized after all peripherals.
+    // FreeRTOS objects MUST be initialized AFTER all peripherals.
     // The main reason is that creating an object (Queue, smphr etc.) sets the BASEPRI register to 0x50
     // Which makes all interrupts with a priority value higher then 5 not serviceable
-    // The HAL Tick interrupt has a priority higher than 5, so the HAL Tick is this happens
+    // The HAL Tick interrupt has a priority higher than 5, so the HAL Tick freezes if this happens
     if(__get_BASEPRI() != 0U){
         return ERR_INVALID_STATE;
     }
@@ -159,6 +169,7 @@ floatsat_err_t FloatSat_Init(const floatsat_periph_t *periph,
         LOG_TAG, "Error initializing utilities. Error code: 0x%04x", ret);
     
 
+    xTraceEnable(TRC_START);
 
     /* ============== Create all required FreeRTOS primitives =============== */
     core_handle.cmd_queue = xQueueCreate(CORE_CMD_QUEUE_LEN,sizeof(floatsat_cmd_t));
