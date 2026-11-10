@@ -87,7 +87,9 @@ Do the same with the accelerometer and the magnetometer
 # Bugs found
 This section is just a few notes on strange bugs I found
 
-1. **Inconsistent UAR**T: 5Mbit/s was too fast for the dupont cables to consistenly carry. Lowered to 500kbit/s
+1. **Inconsistent UART**: 5Mbit/s was too fast for the dupont cables to consistenly carry. Lowered to 500kbit/s
 2. **Telecommand only firing once**: Forgot to rearm the info buffer by setting info_buffer_empty to true again
 3. **Messages with '\n' characters nit behaving properly**: The newline was used as that end of message marker. Changed it to be a NULL terminator. This required a bit of overhaul. Ultimately, the NULL terminator marks the end of a single message, and the End Of Text character (ETX) now marks the end of the info buffer. changed strchr to memchr to bypass the NULL terminator when looking for the ETX char. In `ringbuff_push`, data_len now includes the NULL terminator of the message
 4. **Info messages were "delayed" by one or more after init**: What I mean by this is that calling LOGI for message n will actually print message n-1. This happened because, in the logger task, I forgot to send a notification to itself after the buffer overflow error.
+5. **ESP entered a buggy state after STM32 init**: The uart_flush_input was the culprit. It placed the ESP in a state where most packets were read improperly, making telemetry appear all zeros most of the time. Also, errors where an invalid packet type was detected seem to be mostly due to the INFO_CHUNK_RX_TIME_US constant being lower than the real rx time.
+6. **Attitude estimation drift with calibrated gyroscope**: I messed up the scale in the Madgwick filter. The magnetometer readings where in miligauss, so mostly in the range [200, 550]. The madgwick filter treats the different sensors (accel, gryro, mag) mostly the same, so (I THINK) a big value in the magnetometer vector completely overpowered the other sensors and made it unable to converge. I normalized the magnetometer vector before feeding the filter and the problem was fixed.

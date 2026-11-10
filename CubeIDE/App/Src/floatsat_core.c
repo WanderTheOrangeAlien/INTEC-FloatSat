@@ -326,7 +326,7 @@ static floatsat_err_t Core_IMUCalibrate(floatsat_core_t *handle, uint32_t flags)
     floatsat_err_t ret = ERR_OK;
 
     if(flags & CMD_IMU_CAL_FLAG_GYRO){
-        LOGI(LOG_TAG, "Starting gyroscope calibration");
+        LOGI(LOG_TAG, "Starting gyroscope calibration...");
         GOTO_ON_ERR(Core_IMUCalibrate_Gyro(handle), err, ret);
 
         LOGI(LOG_TAG, "Gyroscope calibration complete. Offsets: {%f %f %f}",
@@ -381,7 +381,7 @@ static floatsat_err_t Core_IMUCalibrate_Gyro(floatsat_core_t *handle)
         gyro_bias_avg.y += imu_data.gyro.y;
         gyro_bias_avg.z += imu_data.gyro.z;
 
-        LOGI(LOG_TAG,"Gyro sample %u / %u",i , IMU_CAL_GYRO_SAMPLES);
+        // LOGI(LOG_TAG,"Gyro sample %u / %u",i , IMU_CAL_GYRO_SAMPLES);
         vTaskDelay(pdMS_TO_TICKS(IMU_CAL_GYRO_SAMPLE_PERIOD_MS));
     }
 

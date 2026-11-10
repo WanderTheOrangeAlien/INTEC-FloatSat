@@ -23,18 +23,23 @@ from ..protocol import ImuDebug
 
 PWM_START = 0.0
 PWM_STOP = 1.0
-PWM_STEP = 0.05
-SAMPLES = 200                   # IMU debug packets recorded per PWM value
-SAMPLE_TIMEOUT_S = 1.0          # give up if no debug packet arrives for this long
+PWM_STEP = 0.1
+SAMPLES = 300                   # IMU debug packets recorded per PWM value
+SAMPLE_TIMEOUT_S = 5.0          # give up if no debug packet arrives for this long
 RESULTS_DIR = Path("results")
 
 NAME = "[test motor]"
 
 
-def pwm_values() -> list[float]:
+def pwm_values() ->list[float]:
     n = round((PWM_STOP - PWM_START) / PWM_STEP)
-    # computed from the index and rounded, so 0.15 is 0.15 and not 0.15000000000000002
-    return [round(PWM_START + i * PWM_STEP, 4) for i in range(n + 1)]
+    res = [None] * 4*n
+    for i in range(n):
+        res[4*i] = round(PWM_START + i * PWM_STEP, 4)
+        res[4*i + 1] = 0
+        res[4*i + 2] = -round(PWM_START + i * PWM_STEP, 4)
+        res[4*i + 3] = 0
+    return res
 
 
 def _drain(queue: asyncio.Queue):
@@ -61,7 +66,7 @@ async def run(link, log):
                 # Throw away packets received before the command goes out, so
                 # every recorded sample is from after it.
                 _drain(imu)
-                await link.send_command(f"motor pwm {pwm:.2f}")
+                await link.send_command(f"motor --pwm {pwm:.2f}")
 
                 for _ in range(SAMPLES):
                     try:
@@ -70,7 +75,7 @@ async def run(link, log):
                         log(f"{NAME} no IMU debug packet for {SAMPLE_TIMEOUT_S:.0f} s at pwm "
                             f"{pwm:.2f}, stopping. Is the debug output enabled?")
                         return
-                    writer.writerow([round((received_at - t0) * 1000, 1), pwm,
+                    writer.writerow([packet.timestamp, pwm,
                                      round(packet.gyro.z, 6)])
                     rows += 1
                 f.flush()
@@ -84,7 +89,7 @@ async def run(link, log):
 
         finally:
             try:
-                await link.send_command("motor pwm 0.00")
+                await link.send_command("motor --pwm 0.00")
                 log(f"{NAME} motor set back to 0")
             except Exception as e:
                 log(f"{NAME} could not send 'motor pwm 0.00' ({type(e).__name__}). "

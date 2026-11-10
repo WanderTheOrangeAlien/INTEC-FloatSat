@@ -48,7 +48,6 @@ typedef struct control_cascade_params_t {
 }control_cascade_params_t;
 
 typedef struct __attribute__((packed)) control_data_t {
-    timestamp_t timestamp;
     float       angle;
     float       angle_ref;
     float       w;

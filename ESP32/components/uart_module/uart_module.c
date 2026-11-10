@@ -3,6 +3,8 @@
 #include "driver/gpio.h"
 #include "uart_module.h"
 
+static void UART_Task(void *params);
+
 static void handle_floatsat_telemetry(uart_module_handle_t *handle, size_t rx_len);
 static void on_packet_rx_complete(uart_module_handle_t *handle);
 static const char *uart_event_type_to_str(uart_event_type_t event_type);
@@ -17,10 +19,62 @@ static const size_t packet_lengths[] = {
     [PACKET_TYPE_EXTENDED]          33U,
     [PACKET_TYPE_INFO_HEADER]       13U,
     [PACKET_TYPE_INFO_CHUNK]        INFO_CHUNK_DATA_SIZE + 2U,
-    [PACKET_TYPE_DEBUG]             38U,
+    [PACKET_TYPE_DEBUG]             46U,
 };
 
-void Task_UART(void *params)
+
+esp_err_t UART_Init(uart_module_handle_t *handle)
+{
+    if(!handle){
+        return ESP_ERR_INVALID_ARG;
+    }
+    if(!handle->config.on_rx_complete || !handle->config.on_info_complete){
+        ESP_LOGE(TAG,"Error initializing. NULL callbacks given");
+    }
+
+
+    ESP_LOGI(TAG,"Initializing UART!");
+
+    uart_module_config_t *config = &handle->config; 
+
+    handle->uart_queue = xQueueCreate(config->uart_queue_size, sizeof(uart_event_t));
+
+    ESP_ERROR_CHECK(uart_driver_install( config->uart_port_num, config->rx_buff_size, 
+                         config->tx_buff_size, config->uart_queue_size, 
+                         &handle->uart_queue, 0));
+    
+    ESP_ERROR_CHECK(uart_param_config(config->uart_port_num, &config->uart_config));
+
+    ESP_ERROR_CHECK(uart_set_pin(config->uart_port_num, 5, 4,
+                        UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE,
+                        UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE ));
+    gpio_pullup_en(config->pin_rx);
+
+    handle->rx_buffer = (uint8_t*)calloc(1,handle->config.rx_buff_size);
+    handle->info_buffer = (uint8_t*)calloc(1, handle->config.info_buffer_len);
+
+    if(!handle->rx_buffer){
+        ESP_LOGE(TAG,"Error allocating rx buffer");
+        return ESP_ERR_NO_MEM;
+    }
+
+    if(!handle->info_buffer){
+        ESP_LOGE(TAG,"Error allocating info buffer");
+        return ESP_ERR_NO_MEM;
+    }
+
+    handle->rx_idx = 0U;
+    handle->rx_state = UART_RX_STATE_WAIT_HEADER;
+
+    xTaskCreate(UART_Task, "Task_UART", UART_TASK_STACK_DEPTH, handle, 
+                UART_TASK_PRIORITY, &handle->task_handle);
+
+    ESP_LOGI(TAG,"UART Initialized!");
+
+    return ESP_OK;
+}
+
+static void UART_Task(void *params)
 {
     uart_module_handle_t *handle = (uart_module_handle_t*)params;
     uart_event_t event;
@@ -71,11 +125,11 @@ static void handle_floatsat_telemetry(uart_module_handle_t *handle, size_t rx_le
 
             // Validate packet type
             if(handle->current_packet_type >= sizeof(packet_lengths) / sizeof(packet_lengths[0])){
-                // ESP_LOGE(TAG,"Invalid packet type: %u. rx_len = %lu",
-                //      handle->current_packet_type, rx_len);
+                ESP_LOGE(TAG,"Invalid packet type: %u. rx_len = %lu",
+                     handle->current_packet_type, rx_len);
                 memset(handle->rx_buffer,0,handle->config.rx_buff_size);
-                uart_flush_input(handle->config.uart_port_num);
-                vTaskDelay(1);
+                // uart_flush_input(handle->config.uart_port_num);
+                // vTaskDelay(1);
                 return;
             }
             
@@ -247,56 +301,6 @@ static void on_packet_rx_complete(uart_module_handle_t *handle)
 
 }
 
-esp_err_t UART_Init(uart_module_handle_t *handle)
-{
-    if(!handle){
-        return ESP_ERR_INVALID_ARG;
-    }
-    if(!handle->config.on_rx_complete || !handle->config.on_info_complete){
-        ESP_LOGE(TAG,"Error initializing. NULL callbacks given");
-    }
-
-
-    ESP_LOGI(TAG,"Initializing UART!");
-
-    uart_module_config_t *config = &handle->config; 
-
-    handle->uart_queue = xQueueCreate(config->uart_queue_size, sizeof(uart_event_t));
-
-    ESP_ERROR_CHECK(uart_driver_install( config->uart_port_num, config->rx_buff_size, 
-                         config->tx_buff_size, config->uart_queue_size, 
-                         &handle->uart_queue, 0));
-    
-    ESP_ERROR_CHECK(uart_param_config(config->uart_port_num, &config->uart_config));
-
-    ESP_ERROR_CHECK(uart_set_pin(config->uart_port_num, 5, 4,
-                        UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE,
-                        UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE ));
-    gpio_pullup_en(config->pin_rx);
-
-    handle->rx_buffer = (uint8_t*)calloc(1,handle->config.rx_buff_size);
-    handle->info_buffer = (uint8_t*)calloc(1, handle->config.info_buffer_len);
-
-    if(!handle->rx_buffer){
-        ESP_LOGE(TAG,"Error allocating rx buffer");
-        return ESP_ERR_NO_MEM;
-    }
-
-    if(!handle->info_buffer){
-        ESP_LOGE(TAG,"Error allocating info buffer");
-        return ESP_ERR_NO_MEM;
-    }
-
-    handle->rx_idx = 0U;
-    handle->rx_state = UART_RX_STATE_WAIT_HEADER;
-
-    xTaskCreate(Task_UART, "Task_UART", UART_TASK_STACK_DEPTH, handle, 
-                UART_TASK_PRIORITY, &handle->task_handle);
-
-    ESP_LOGI(TAG,"UART Initialized!");
-
-    return ESP_OK;
-}
 
 static const char *uart_event_type_to_str(uart_event_type_t event_type)
 {

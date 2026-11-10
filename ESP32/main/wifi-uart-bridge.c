@@ -5,6 +5,7 @@
 #include "uart_module.h"
 #include "websocket_module.h"
 #include "project_defs.h"
+#include "camera_module.h"
 
 // #define WIFI_DISABLE    1
 
@@ -17,10 +18,10 @@ static void print_hex(uint8_t *buffer, size_t len);
 
 
 static wifi_module_config_t wifi_config = {
-    // .ssid       = "La Cueva del Dragon",
-    // .password   = "ElVerdeTalisman29",
-    .ssid       = "Miguel iPhone",
-    .password   = "Maup1234",
+    .ssid       = "La Cueva del Dragon",
+    .password   = "ElVerdeTalisman29",
+    // .ssid       = "Miguel iPhone",
+    // .password   = "Maup1234",
     .wifi_mode  = WIFI_MODE_STA
 };
 
@@ -45,6 +46,12 @@ static uart_module_handle_t uart_handle = {
             .flow_ctrl      = UART_HW_FLOWCTRL_DISABLE,
         }
     }
+};
+
+
+uint8_t frame_buffer[4096] = {0};
+static camera_handle_t camera_handle = {
+    .frame_buffer = frame_buffer
 };
 
 static ws_handle_t ws_handle = {
@@ -89,7 +96,9 @@ static void on_uart_info(uint8_t *info_buffer, size_t len)
 void app_main(void)
 {
     ESP_ERROR_CHECK(UART_Init(&uart_handle));
-#ifndef WIFI_DISABLE
+    ESP_ERROR_CHECK(Camera_Init(&camera_handle));
+    
+    #ifndef WIFI_DISABLE
     ESP_ERROR_CHECK(Wifi_Init(&wifi_config));
     ESP_ERROR_CHECK(Websocket_Init(&ws_handle));
 #endif

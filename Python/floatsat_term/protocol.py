@@ -38,6 +38,7 @@ class FastTelemetry:            # telemetry_packet_fast_t
 
 @dataclass(frozen=True)
 class ImuDebug:                 # telemetry_packet_debug_t with debug_id = IMU
+    timestamp: int
     accel: Vec3
     gyro: Vec3
     mag: Vec3
@@ -63,7 +64,7 @@ class PacketError(Exception):
 
 _FAST = struct.Struct("<BQ3ff")          # type, timestamp, orientation xyz, rw
 _DEBUG_HEADER = struct.Struct("<BB")     # type, debug_id
-_IMU = struct.Struct("<9f")              # IMU_data_t: accel, gyro, mag
+_IMU = struct.Struct("<Q9f")              # IMU_data_t: timestamp, accel, gyro, mag
 _CONTROL = struct.Struct("<Q5f")         # control_data_t: timestamp, angle, angle_ref, w, w_ref, pwm_out
 
 
@@ -76,7 +77,7 @@ def _parse_fast(data: bytes) -> FastTelemetry:
 
 def _parse_imu(data: bytes, offset: int) -> ImuDebug:
     v = _IMU.unpack_from(data, offset)
-    return ImuDebug(Vec3(*v[0:3]), Vec3(*v[3:6]), Vec3(*v[6:9]))
+    return ImuDebug(int(v[0]),Vec3(*v[1:4]), Vec3(*v[4:7]), Vec3(*v[7:10]))
 
 
 def _parse_control(data: bytes, offset: int) -> ControlDebug:

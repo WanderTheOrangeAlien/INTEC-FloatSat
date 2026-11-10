@@ -7,6 +7,7 @@
 #include "floatsat_err_log.h"
 #include "floatsat_types.h"
 
+#include "fs_packets.h"
 
 #include "FreeRTOS.h"
 #include "queue.h"
@@ -37,58 +38,10 @@
 #define INFO_CHUNK_DATA_SIZE        32U
 #define INFO_CHUNK_SIZE             (offsetof(info_packet_chunk_t, data) + INFO_CHUNK_DATA_SIZE)
 #define INFO_CHUNK_TIME_MARGIN_US   100U        // Microseconds of margin to leave before task switch is performed
-#define INFO_CHUNK_RX_TIME_US       (80U*2U)    // Estimated time needed for sending a chunk.   
+#define INFO_CHUNK_RX_TIME_US       (680U)    // Estimated time needed for sending a chunk.   
 
 #define DEBUG_PACKET_ID_IMU         0x00
 #define DEBUG_PACKET_ID_CONTROL     0x01
-
-typedef struct __attribute__((packed)) telemetry_packet_fast_t {
-    Vec3_t orientation;
-    float rw_speed;
-}telemetry_packet_fast_t;
-
-
-
-typedef struct __attribute__((packed)) telemetry_packet_slow_t {
-    float temp;
-    float v_batt;
-    // TODO: Add Subsystem health indicators
-
-}telemetry_packet_slow_t;
-
-typedef struct __attribute__((packed)) telemetry_packet_debug_t {
-    uint8_t type;
-    uint8_t debug_id;
-    union {
-        IMU_data_t      imu_data;
-        control_data_t  control_data;
-    };
-    
-}telemetry_packet_debug_t;
-
-typedef struct __attribute__((packed)) telemetry_packet_t {
-    uint8_t type;                 // Thsi is written by the telemetry task based on the packet type flags
-    timestamp_t timestamp;
-      
-    telemetry_packet_fast_t fast; // Orientaiton and reaction wheel speed
-    
-    telemetry_packet_slow_t slow; // Other Onboard sensors and health indicators
-}telemetry_packet_t;
-
-typedef struct __attribute__((packed)) info_packet_header_t {
-    uint8_t type;                // To tell apart from telemetry packets
-    timestamp_t timestamp;
-    uint8_t nchunks;
-    uint8_t last_chunk_size;
-    uint16_t crc;
-}info_packet_header_t;
-
-typedef struct __attribute__((packed)) info_packet_chunk_t {
-    uint8_t type;
-    uint8_t chunk_number;
-    uint8_t *data; // When transmiting, will only read INFO_CHUNK_DATA_SIZE bytes from this pointer
-
-}info_packet_chunk_t;
 
 typedef struct telemetry_handle_t {
     UART_HandleTypeDef *uart;

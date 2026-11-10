@@ -60,6 +60,10 @@ void Task_ControlFn(void *args)
 
 
     floatsat_err_t ret = ERR_OK;
+
+    uint32_t dbg_count = 0U;
+    UNUSED(dbg_count);
+
     while(1){
 
         /* ======================= Control Loop Start ======================= */
@@ -86,7 +90,12 @@ void Task_ControlFn(void *args)
 
         // TODO: I don't know if this is proper when having the data bus. It's a direct form of communication, though
         Telemetry_AddFast(handle->telemetry_handle, &packet);
-        Control_SendDebug(handle, &imu_data, &debug_control_data);
+
+
+        if(++dbg_count >= 5){
+            Control_SendDebug(handle, &imu_data, &debug_control_data);
+            dbg_count = 0U;
+        }
 
         xTaskNotify(handle->telemetry_handle->task_handle, 0U, eNoAction);
         vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(CONTROL_LOOP_PERIOD_MS));
@@ -121,7 +130,15 @@ static floatsat_err_t Control_EstimateOrientation(control_handle_t *handle, IMU_
     if(ret == ERR_OK){
         imu_data->gyro = Vec_SMult(&imu_data->gyro, MDPS_TO_RADS); // Convert gyro units from mDPS to rad/s
         imu_data->accel = Vec_SMult(&imu_data->accel, CM_TO_M);
+        imu_data->mag = Vec_Normalize(&imu_data->mag);
 
+
+        // DEBUG: DELETE THIS
+        // imu_data->accel = (Vec3_t){0,0,9.81f};
+        // imu_data->mag = (Vec3_t){0.98f, 0.01f, 0};
+        // imu_data->gyro = (Vec3_t){0,0,0};
+        
+        
         now_us = Util_GetTimeUs();
         dt = (float)(now_us - last_update_us) * 1.0e-6f;
         
@@ -192,8 +209,6 @@ static floatsat_err_t Control_ComputeOutput(
 
     if(debug_data_out){
         *debug_data_out = (control_data_t) {
-            .timestamp  = HAL_GetTick(),
-
             .angle      = theta,
             .angle_ref  = handle->g_control_config->target_angle,
 
@@ -208,7 +223,7 @@ static floatsat_err_t Control_ComputeOutput(
     return ERR_OK;
 }
 
-
+// __attribute__((unused))
 static floatsat_err_t Control_SendDebug(control_handle_t *handle, IMU_data_t *imu_data, control_data_t *control_data)
 {
     if(!handle){
@@ -218,6 +233,8 @@ static floatsat_err_t Control_SendDebug(control_handle_t *handle, IMU_data_t *im
     telemetry_packet_debug_t debug_packet = {0};
     debug_packet.type       = PACKET_TYPE_DEBUG;
     debug_packet.debug_id   = handle->debug_packet_id;
+    debug_packet.timestamp  = HAL_GetTick();
+
 
     switch (handle->debug_packet_id)
     {

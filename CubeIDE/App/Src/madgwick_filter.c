@@ -35,7 +35,7 @@ floatsat_err_t Madgwick_ResetOrientation(madgwick_filter_t *handle)
     }
 
     handle->SEq = QUATERNION_IDENTITY();
-    handle->b   = (Vec3_t){0};
+    handle->b   = (Vec3_t){1,0,0};
     return ERR_OK;
 }
 

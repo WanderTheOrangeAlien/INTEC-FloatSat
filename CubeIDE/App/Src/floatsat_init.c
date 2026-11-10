@@ -13,6 +13,7 @@
 
 #include "floatsat_init.h"
 #include "data_bus_priv.h"
+
 static const char *LOG_TAG = "INIT";
 
 /* ============================= Module handles ============================= */
@@ -180,7 +181,6 @@ floatsat_err_t FloatSat_Init(const floatsat_periph_t *periph,
     /* ----------------------------- Motor ----------------------------- */
     out_callbacks->encoder_sample_cb = Motor_Cb_EncoderSampler;
     
-
     return ERR_OK;
 
 err:

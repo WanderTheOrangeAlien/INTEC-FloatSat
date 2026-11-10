@@ -114,9 +114,8 @@ static struct {
 }argtable_imu_cal;
 
 /* =========================== motor command =========================== */
-// Format motor pwm <pwm_val>
+// Format motor -p <pwm_val>
 static struct {
-    struct arg_rex *subcmd;
     struct arg_dbl *pwm_val;
     struct arg_end *end;
 }argtable_motor_pwn;
@@ -263,8 +262,7 @@ static int cmd_init_imu(void)
 
 static int cmd_init_motor(void)
 {
-    argtable_motor_pwn.subcmd           =   arg_rex1(NULL, NULL, "pwm", NULL, ARG_REX_ICASE, "Set a pwm output to the motor [0-1]");
-    argtable_motor_pwn.pwm_val          =   arg_dbl1(NULL, NULL, "float", "PWM value [0-1]");
+    argtable_motor_pwn.pwm_val          =   arg_dbl1("p", "pwm", "float", "PWM value [0-1]");
     argtable_motor_pwn.end              =   arg_end(CMD_MAX_ERRORS);
 
     return 0;

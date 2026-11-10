@@ -9,6 +9,9 @@
 
 
 Vec3_t Vec_SMult(const Vec3_t *vec, float scalar); // Scalar multiplication
+float Vec_Norm(const Vec3_t *v);
+Vec3_t Vec_Normalize(const Vec3_t *v);
+
 float Vec_GetAzimuth(const Vec3_t *vec);
 
 Quaternion_t Vec3_toQuaternion(const Vec3_t *vec);

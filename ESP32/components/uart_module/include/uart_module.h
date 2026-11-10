@@ -7,7 +7,7 @@
 #include "esp_log.h"
 
 #define UART_TASK_STACK_DEPTH       2048
-#define UART_TASK_PRIORITY          2
+#define UART_TASK_PRIORITY          5
 
 /* @UART_RX_STATE */
 #define UART_RX_STATE_WAIT_HEADER   0

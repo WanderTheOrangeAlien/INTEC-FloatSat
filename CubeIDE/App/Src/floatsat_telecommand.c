@@ -92,7 +92,7 @@ void Task_TelecmdFn(void *args)
 
 err:
         // Report the error through a telemetry info packet
-        LOGE(LOG_TAG,"Error, invalid command");
+        LOGE(LOG_TAG,"Error: invalid command");
         
         // Rearm the msg buffer
         memset(handle->msg_buffer, 0, CMD_MSG_BUFFER_LEN);

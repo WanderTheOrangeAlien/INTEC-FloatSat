@@ -9,6 +9,19 @@ Vec3_t Vec_SMult(const Vec3_t *vec, float scalar)
     };
 }
 
+float Vec_Norm(const Vec3_t *v)
+{
+    return sqrtf( v->x * v->x 
+                 +v->y * v->y
+                 +v->z * v->z  );
+}
+
+Vec3_t Vec_Normalize(const Vec3_t *v)
+{
+    return Vec_SMult(v, 1 / Vec_Norm(v));
+}
+
+
 float Vec_GetAzimuth(const Vec3_t *vec)
 {
     return atan2f(vec->y, vec->x);

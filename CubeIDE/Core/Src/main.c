@@ -89,6 +89,7 @@ int main(void)
 
   /* USER CODE BEGIN 1 */
 
+
  
   // TODO: Does the MCU have a FPU so we can handle floating point thru hardware? 
   // Is it enabled?
