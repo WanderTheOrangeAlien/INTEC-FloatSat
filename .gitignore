@@ -62,3 +62,6 @@ build/
 
 # STM32Cube
 Debug/
+
+# Other folders
+results/
