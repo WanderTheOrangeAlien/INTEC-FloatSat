@@ -18,10 +18,13 @@ static void print_hex(uint8_t *buffer, size_t len);
 
 
 static wifi_module_config_t wifi_config = {
-    .ssid       = "La Cueva del Dragon",
-    .password   = "ElVerdeTalisman29",
+    // .ssid       = "La Cueva del Dragon",
+    // .password   = "ElVerdeTalisman29",
     // .ssid       = "Miguel iPhone",
     // .password   = "Maup1234",
+    .ssid       = "Valen’s Phone",
+    .password   = "valenzmovil04?",
+
     .wifi_mode  = WIFI_MODE_STA
 };
 
@@ -48,7 +51,6 @@ static uart_module_handle_t uart_handle = {
     }
 };
 
-
 uint8_t frame_buffer[4096] = {0};
 static camera_handle_t camera_handle = {
     .frame_buffer = frame_buffer
@@ -63,6 +65,11 @@ static esp_err_t on_ws_rx(uint8_t *buffer, size_t len)
     printf("WS: ");
     print_str_with_hex((char*)buffer,len);
     printf("\n");
+
+    if(strncmp((char*)buffer, "esp-restart", len)){
+        ESP_LOGI("System","Resetting ESP...");
+        esp_restart();
+    }
 
     uart_write_bytes(uart_handle.config.uart_port_num, buffer, len);
 

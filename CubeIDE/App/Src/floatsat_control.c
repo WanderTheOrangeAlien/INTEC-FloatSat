@@ -34,9 +34,13 @@ floatsat_err_t Control_Init(control_handle_t *handle)
 
     GOTO_ON_ERR_LOG(DataBus_GetWriter_IMU(&handle->data_bus_writer),err, ret,
             LOG_TAG, "Could not acquire data bus writer");
-
-    handle->debug_packet_id = DEBUG_PACKET_ID_IMU;
-
+    handle->g_control_config->debug_id = DEBUG_PACKET_ID_CONTROL;
+    handle->g_control_config->params = (control_cascade_params_t){
+        .k_theta    = -0.5f ,
+        .k_p        = -0.01230458266f * 5.0f,
+        .k_i        = -0.00499678814f
+    };
+    handle->g_control_config->control_active = false;
 
     LOGI(LOG_TAG,"Initialization succesful");
     return ERR_OK;
@@ -74,9 +78,16 @@ void Task_ControlFn(void *args)
             // TODO: Implement recovery
         }
 
-        if(ret == ERR_OK){
-            ret = Control_ComputeOutput(handle, &imu_data, &pwm_out, &debug_control_data);
+        if(handle->g_control_config->control_active){
+            if(ret == ERR_OK){
+                ret = Control_ComputeOutput(handle, &imu_data, &pwm_out, &debug_control_data);
+            }
+            
+            if(ret == ERR_OK){
+                Motor_SetDutyCycle(handle->motor, pwm_out);
+            }
         }
+            
 
         /* ======================= Control Loop End ======================= */
 
@@ -92,7 +103,7 @@ void Task_ControlFn(void *args)
         Telemetry_AddFast(handle->telemetry_handle, &packet);
 
 
-        if(++dbg_count >= 5){
+        if(++dbg_count >= 1){
             Control_SendDebug(handle, &imu_data, &debug_control_data);
             dbg_count = 0U;
         }
@@ -232,11 +243,11 @@ static floatsat_err_t Control_SendDebug(control_handle_t *handle, IMU_data_t *im
 
     telemetry_packet_debug_t debug_packet = {0};
     debug_packet.type       = PACKET_TYPE_DEBUG;
-    debug_packet.debug_id   = handle->debug_packet_id;
+    debug_packet.debug_id   = handle->g_control_config->debug_id;
     debug_packet.timestamp  = HAL_GetTick();
 
 
-    switch (handle->debug_packet_id)
+    switch (debug_packet.debug_id)
     {
     case DEBUG_PACKET_ID_IMU:
         debug_packet.imu_data = *imu_data;

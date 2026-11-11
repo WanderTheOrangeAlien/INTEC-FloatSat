@@ -22,9 +22,9 @@ from pathlib import Path
 from ..protocol import ImuDebug
 
 PWM_START = 0.0
-PWM_STOP = 1.0
-PWM_STEP = 0.1
-SAMPLES = 300                   # IMU debug packets recorded per PWM value
+PWM_STOP = 0.25
+PWM_STEP = 0.02
+SAMPLES = 200                   # IMU debug packets recorded per PWM value
 SAMPLE_TIMEOUT_S = 5.0          # give up if no debug packet arrives for this long
 RESULTS_DIR = Path("results")
 

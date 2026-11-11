@@ -11,7 +11,7 @@
 #define CMD_PARSER_MAX_ARGS         16
 #define CMD_MAX_ERRORS              20
 
-#define CMD_CONTROL_N_SUBCMD        3   // Number of subcommands for the control command
+#define CMD_CONTROL_N_SUBCMD        5   // Number of subcommands for the control command
 #define CMD_MISSION_N_SUBCMD        2   //  Number of subcommands for the mission command
 #define CMD_PHOTO_N_SUBCMD          3   //  Number of subcommands for the photo command
 

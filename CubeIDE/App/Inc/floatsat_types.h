@@ -53,12 +53,15 @@ typedef struct __attribute__((packed)) control_data_t {
     float       w;
     float       w_ref;
     float       pwm_out;
+    float       rw_speed;
 }control_data_t;
 
 typedef struct control_config_t {
     float                       target_angle;
     control_cascade_params_t    params;
     uint8_t                     control_type;
+    bool                        control_active;
+    uint8_t                     debug_id;
 }control_config_t;
 
 
@@ -72,6 +75,10 @@ typedef struct control_config_t {
 #define CMD_ID_CONTROL_INFO     ((uint8_t)0x10)
 #define CMD_ID_CONTROL_SET      ((uint8_t)0x11)    // Uses malloc
 #define CMD_ID_CONTROL_ANGLE    ((uint8_t)0x12)
+#define CMD_ID_CONTROL_DEBUG    ((uint8_t)0x13)
+#define CMD_ID_CONTROL_ENABLE   ((uint8_t)0x14)
+#define CMD_ID_CONTROL_DISABLE  ((uint8_t)0x15)
+
 
 #define CMD_ID_MISSION_INFO     ((uint8_t)0x20)
 #define CMD_ID_MISSION_SET      ((uint8_t)0x21)
@@ -85,6 +92,8 @@ typedef struct control_config_t {
 
 #define CMD_ID_MOTOR_PWM_SET    ((uint8_t)0x50)
 
+#define CMD_ID_SYSCTL           ((uint8_t)0x60)
+
 
 
 #define CMD_READ_IMU_FLAG_ACCEL     (1U << 0)
@@ -96,6 +105,8 @@ typedef struct control_config_t {
 #define CMD_IMU_CAL_FLAG_ACCEL      (1U << 0)
 #define CMD_IMU_CAL_FLAG_GYRO       (1U << 1)
 #define CMD_IMU_CAL_FLAG_MAG        (1U << 2)
+
+#define CMD_SYSCTTL_FLAG_RESET      (1U << 1)
 
 
 typedef struct floatsat_cmd_t {

@@ -52,6 +52,7 @@ class ControlDebug:             # telemetry_packet_debug_t with debug_id = CONTR
     w: float
     w_ref: float
     pwm_out: float
+    rw_speed: float
 
 
 class PacketError(Exception):
@@ -65,7 +66,7 @@ class PacketError(Exception):
 _FAST = struct.Struct("<BQ3ff")          # type, timestamp, orientation xyz, rw
 _DEBUG_HEADER = struct.Struct("<BB")     # type, debug_id
 _IMU = struct.Struct("<Q9f")              # IMU_data_t: timestamp, accel, gyro, mag
-_CONTROL = struct.Struct("<Q5f")         # control_data_t: timestamp, angle, angle_ref, w, w_ref, pwm_out
+_CONTROL = struct.Struct("<Q6f")         # control_data_t: timestamp, angle, angle_ref, w, w_ref, pwm_out
 
 
 def _parse_fast(data: bytes) -> FastTelemetry:

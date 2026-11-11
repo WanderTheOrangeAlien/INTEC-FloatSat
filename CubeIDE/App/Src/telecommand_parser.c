@@ -20,11 +20,14 @@ static floatsat_err_t parse_cmd_imu(parser_ctx_t *ctx, floatsat_cmd_t *cmd);
 
 static floatsat_err_t parse_cmd_motor(parser_ctx_t *ctx, floatsat_cmd_t *cmd);
 
+static floatsat_err_t parse_cmd_system(parser_ctx_t *ctx, floatsat_cmd_t *cmd);
+
 static int cmd_init_control(void);
 static int cmd_init_mission(void);
 static int cmd_init_photo(void);
 static int cmd_init_imu(void);
 static int cmd_init_motor(void);
+static int cmd_init_system(void);
 
 
 static const char *LOG_TAG = "CMD_PARSER";
@@ -53,6 +56,18 @@ static struct {
     struct arg_dbl *angle;
     struct arg_end *end;
 }argtable_control_angle;
+
+///Format: control [--debug-id <debug_id>] [-e] [-d] 
+static struct {
+    struct arg_int *debug_id;
+    struct arg_end *end;
+}argtable_control_debug;
+
+static struct {
+    struct arg_lit *enable;
+    struct arg_lit *disable;
+    struct arg_end *end;
+}argtable_control_endis;
 
 
 /* =========================== Mission command =========================== */
@@ -120,12 +135,19 @@ static struct {
     struct arg_end *end;
 }argtable_motor_pwn;
 
+/* =========================== System command =========================== */
+static struct {
+    struct arg_lit *reset;
+    struct arg_end *end;
+}argtable_system;
+
 static const cmd_handler_pair_t cmd_handler_table[] = {
     {"control",     parse_cmd_control},
     {"mission",     parse_cmd_mission},
     {"photo",       parse_cmd_photo},
     {"imu",         parse_cmd_imu},
     {"motor",       parse_cmd_motor},
+    {"sys",         parse_cmd_system},
 };
 static const size_t cmd_handler_table_len = sizeof(cmd_handler_table) / sizeof(cmd_handler_pair_t);
 
@@ -145,6 +167,7 @@ floatsat_err_t CmdParser_Init(parser_ctx_t *ctx)
     cmd_init_photo();
     cmd_init_imu();
     cmd_init_motor();
+    cmd_init_system();
 
     return ERR_OK;
 }
@@ -197,6 +220,17 @@ static int cmd_init_control(void)
     // Format: control -a <angle>
     argtable_control_angle.angle        =   arg_dbl1("a","angle","float","Target azimuth angle");
     argtable_control_angle.end          =   arg_end(CMD_MAX_ERRORS);
+
+    // Format: control --debug-id id
+    argtable_control_debug.debug_id     =   arg_int1(NULL,"debug-id","DEBUG_PACKET_ID","Debug packet ID to send");
+    argtable_control_debug.end          =   arg_end(CMD_MAX_ERRORS);
+
+    // Format: control [--en] [--dis]
+    argtable_control_endis.enable       =   arg_lit0("e","enable","Enable control loop");
+    argtable_control_endis.disable      =   arg_lit0("d","disable","Disable control loop");
+    argtable_control_endis.end          =   arg_end(CMD_MAX_ERRORS);
+    
+
 
     // TODO: Check for NULL pointers!
 
@@ -268,6 +302,13 @@ static int cmd_init_motor(void)
     return 0;
 }
 
+static int cmd_init_system(void){
+    argtable_system.reset               = arg_lit0(NULL,"reset","Reset the microcontroller");
+    argtable_system.end                 = arg_end(CMD_MAX_ERRORS);
+    
+    return 0;
+}
+
 #pragma endregion
 
 
@@ -290,6 +331,8 @@ static floatsat_err_t parse_cmd_control(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
     nerrors_arr[0] = arg_parse(ctx->argc,ctx->argv, (void**)&argtable_control_info);
     nerrors_arr[1] = arg_parse(ctx->argc,ctx->argv, (void**)&argtable_control_set);
     nerrors_arr[2] = arg_parse(ctx->argc,ctx->argv, (void**)&argtable_control_angle);
+    nerrors_arr[3] = arg_parse(ctx->argc, ctx->argv, (void**)&argtable_control_debug);
+    nerrors_arr[4] = arg_parse(ctx->argc, ctx->argv, (void**)&argtable_control_endis);
 
 
     *cmd = (floatsat_cmd_t){0}; 
@@ -352,7 +395,29 @@ static floatsat_err_t parse_cmd_control(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
         cmd->cmd_id = CMD_ID_CONTROL_ANGLE;
         memcpy(&cmd->params, &angle, sizeof(float));
 
-    }else{
+    }else if(!nerrors_arr[3]){
+        cmd->cmd_id = CMD_ID_CONTROL_DEBUG;
+        int id = argtable_control_debug.debug_id->ival[0];
+        if(id < 0){
+            return ERR_INVALID_CMD;
+        }
+        memcpy(&cmd->params, &id, sizeof(int));
+
+
+
+
+    }else if(!nerrors_arr[4]){
+        if(argtable_control_endis.enable->count > 0){
+            cmd->cmd_id = CMD_ID_CONTROL_ENABLE;
+        }else if(argtable_control_endis.disable->count > 0){
+            cmd->cmd_id = CMD_ID_CONTROL_DISABLE;
+        }else{
+            return ERR_INVALID_CMD;
+        }
+    }
+    
+    
+    else{
         // printf("Errors: [%d %d]\n",nerrors_arr[0], nerrors_arr[1]);
         // printf("INFO\n");
         // arg_print_errors(stdout, argtable_control_info.end, "control");
@@ -585,6 +650,34 @@ static floatsat_err_t parse_cmd_motor(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
         return ERR_INVALID_CMD;
     }
     
+    return ERR_OK;
+}
+
+static floatsat_err_t parse_cmd_system(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
+{
+    if(!ctx || !cmd){
+        return ERR_INVALID_ARG;
+    }
+
+    int nerrors_arr[2] = {0};
+
+    nerrors_arr[0] = arg_parse(ctx->argc, ctx->argv, (void**)&argtable_system);
+
+    if(!nerrors_arr[0]){
+        cmd->cmd_id = CMD_ID_SYSCTL;
+        uint32_t sys_action_flag = 0U;
+        if(argtable_system.reset->count > 0){
+            sys_action_flag |= (uint32_t)CMD_SYSCTTL_FLAG_RESET;
+        }
+
+        memcpy(&cmd->params, &sys_action_flag, sizeof(uint32_t));
+
+        
+    }else{
+    	return ERR_INVALID_CMD;
+    }
+
+
     return ERR_OK;
 }
 

@@ -29,14 +29,11 @@ typedef struct control_handle_t {
     Vec3_t              current_orientation;
     telemetry_handle_t  *telemetry_handle;
     motor_handle_t      *motor;
-
     TaskHandle_t        task_handle;
 
     control_config_t    *g_control_config;      // Configuration struct shared with the supervisor
 
     data_bus_writer_t   *data_bus_writer;
-    uint8_t             debug_packet_id;       // ID of the debug packet to send
-
 }control_handle_t;
 
 void Task_ControlFn(void *args);

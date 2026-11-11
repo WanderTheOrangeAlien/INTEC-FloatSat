@@ -37,4 +37,5 @@ def show_packet(console: Console, packet):
                            f"({packet.timestamp}) ctl  "
                            f"angle {packet.angle:>8.2f} -> {packet.angle_ref:>8.2f}  "
                            f"w {packet.w:>8.3f} -> {packet.w_ref:>8.3f}  "
-                           f"pwm {packet.pwm_out:>6.3f}")
+                           f"pwm {packet.pwm_out:>6.3f}  "
+                           f"rw {packet.rw_speed:>8.2f}")

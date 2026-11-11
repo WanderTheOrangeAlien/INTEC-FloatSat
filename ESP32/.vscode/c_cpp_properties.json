@@ -12,6 +12,9 @@
             "intelliSenseMode": "linux-clang-x64",
             "forcedInclude": [
                 "${workspaceFolder}/build/config/sdkconfig.h"
+            ],
+            "compileCommands": [
+                "${workspaceFolder}/build/compile_commands.json"
             ]
         }
     ],

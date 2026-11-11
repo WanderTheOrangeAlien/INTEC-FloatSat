@@ -135,7 +135,23 @@ STATIC floatsat_err_t Core_HandleCmd(floatsat_core_t *handle, floatsat_cmd_t *cm
             memcpy(&handle->g_control_config->target_angle, &cmd->params, sizeof(float));
             taskEXIT_CRITICAL();
             LOGI(LOG_TAG,"Set target angle to: %f",(double)handle->g_control_config->target_angle);
- 
+            break;
+
+        case CMD_ID_CONTROL_DEBUG:
+            taskENTER_CRITICAL();
+            memcpy(&handle->g_control_config->debug_id, &cmd->params, sizeof(uint8_t));
+            taskEXIT_CRITICAL();
+            LOGI(LOG_TAG, "Changed control debug packet ID to %u", handle->g_control_config->debug_id);
+            break;
+
+        case CMD_ID_CONTROL_ENABLE:
+            handle->g_control_config->control_active = true;
+            LOGI(LOG_TAG,"Control loop enabled");
+            break;
+
+        case CMD_ID_CONTROL_DISABLE:
+            handle->g_control_config->control_active = false;
+            LOGI(LOG_TAG,"Control loop disabled");
             break;
 
         case CMD_ID_MISSION_INFO:

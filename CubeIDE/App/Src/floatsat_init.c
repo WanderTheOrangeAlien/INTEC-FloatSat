@@ -90,7 +90,6 @@ static control_handle_t control_handle = {
     .telemetry_handle   = &telemetry_handle,
     .motor              = &motor_handle,
     .g_control_config   = &g_control_config,
-	.debug_packet_id	= DEBUG_PACKET_ID_CONTROL,
 };
 
 
