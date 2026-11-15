@@ -44,6 +44,8 @@ typedef enum floatsat_err_t {
     ERR_HAL_TIMEOUT             =   0x803,
 
     ERR_CORE_MAX_PHOTOS         =   0xA00,
+    ERR_CORE_RTC_READ_FAIL      =   0xA01,
+    ERR_CORE_RTC_WRITE_FAIL     =   0xA01,
 
     ERR_DATABUS_INVALID_WRITE   =   0xB00,
 

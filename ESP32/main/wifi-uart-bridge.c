@@ -6,6 +6,7 @@
 #include "websocket_module.h"
 #include "project_defs.h"
 #include "camera_module.h"
+#include "fs_packets.h"
 
 // #define WIFI_DISABLE    1
 
@@ -14,16 +15,19 @@ static void on_uart_rx(uint8_t *buffer, size_t len, uint8_t packet_type);
 static void on_uart_info(uint8_t *info_buffer, size_t len);
 static void print_str_with_hex(char buffer[], size_t len);
 
+static void handle_esp_command(esp_cmd_t *cmd);
+
 static void print_hex(uint8_t *buffer, size_t len);
 
+static const char LOG_TAG[] = "MAIN";
 
 static wifi_module_config_t wifi_config = {
-    // .ssid       = "La Cueva del Dragon",
-    // .password   = "ElVerdeTalisman29",
+    .ssid       = "La Cueva del Dragon",
+    .password   = "ElVerdeTalisman29",
     // .ssid       = "Miguel iPhone",
     // .password   = "Maup1234",
-    .ssid       = "Valen’s Phone",
-    .password   = "valenzmovil04?",
+    // .ssid       = "Valen’s Phone",
+    // .password   = "valenzmovil04?",
 
     .wifi_mode  = WIFI_MODE_STA
 };
@@ -66,15 +70,16 @@ static esp_err_t on_ws_rx(uint8_t *buffer, size_t len)
     print_str_with_hex((char*)buffer,len);
     printf("\n");
 
-    if(strncmp((char*)buffer, "esp-restart", len)){
+    if(strncmp((char*)&buffer[6], "esp-restart", len) == 0){
         ESP_LOGI("System","Resetting ESP...");
         esp_restart();
+        return ESP_OK;
     }
 
     uart_write_bytes(uart_handle.config.uart_port_num, buffer, len);
 
     return ESP_OK;
-}
+}   
 
 static uint32_t dbg_count = 0U; 
 
@@ -84,7 +89,10 @@ static void on_uart_rx(uint8_t *buffer, size_t len, uint8_t packet_type)
     // print_hex(buffer, len);
     // printf("\n");
 
-
+    if(packet_type == PACKET_TYPE_CMD){
+        handle_esp_command((esp_cmd_t*)&buffer[1]);
+        return;
+    }
 
 
 #ifndef WIFI_DISABLE
@@ -98,6 +106,26 @@ static void on_uart_info(uint8_t *info_buffer, size_t len)
 {
     // printf("[%s] Got info buffer with %zu bytes\n",__func__, len);
     Websocket_Send(&ws_handle, info_buffer, len, HTTPD_WS_TYPE_TEXT);
+}
+
+static void handle_esp_command(esp_cmd_t *cmd)
+{
+    ESP_LOGI(LOG_TAG,"Received command {ID: 0x%02x. Amount: %u}.",
+        cmd->cmd_id,cmd->args.photo_amount);
+
+    if(cmd->cmd_id == EXT_CMD_TAKE_PHOTO){
+        ESP_LOGI(LOG_TAG,"Taking %u photos...",cmd->args.photo_amount);
+
+        // IMPORTANT: Remember that this runs from the on_uart_rx callback
+        // Defer taking the photo to a separate task
+
+        // TODO: Move this code to the task that will take the photo
+        UART_SendFloatsatCmd(&uart_handle, "sys --invoke-cb on_photo_finish");
+        ESP_LOGI(LOG_TAG,"Photo finished!");
+
+
+    }
+
 }
 
 void app_main(void)

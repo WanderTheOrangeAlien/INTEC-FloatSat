@@ -2,21 +2,24 @@
 #include <stdlib.h>
 #include <string.h>
 
-static bool cmd_used_malloc(uint8_t cmd_id);
+// static bool cmd_used_malloc(uint8_t cmd_id);
+#include "floatsat_core_priv.h"
 
-STATIC floatsat_err_t Core_HandleCmd(floatsat_core_t *handle, floatsat_cmd_t *cmd);
-STATIC floatsat_err_t Core_ChangeMission(floatsat_core_t *handle, uint32_t mission);
-STATIC floatsat_err_t Core_AddPhoto(floatsat_core_t *handle, photo_info_t *photo_info);
-STATIC floatsat_err_t Core_SetControl(floatsat_core_t *handle, floatsat_cmd_t *cmd);
-STATIC floatsat_err_t Core_ResetPhotos(floatsat_core_t *handle);
 
-static floatsat_err_t Core_ReadIMU(floatsat_core_t *handle, uint32_t flags);
-static floatsat_err_t Core_IMUCalibrate(floatsat_core_t *handle, uint32_t flags);
-static floatsat_err_t Core_IMUCalibrate_Gyro(floatsat_core_t *handle);
-
-STATIC void Core_PrintPhotoInfo(floatsat_core_t *handle);
+static floatsat_err_t Core_HandleCmd(floatsat_core_t *handle, floatsat_cmd_t *cmd);
 
 static floatsat_err_t Core_Mission_Playground(floatsat_core_t *handle);
+
+static floatsat_err_t Core_Update(floatsat_core_t *handle);
+static floatsat_err_t Core_DebugUpdate(floatsat_core_t *handle);
+static floatsat_err_t Core_SendDebug(floatsat_core_t *handle);
+
+static floatsat_err_t Core_UpdatePhotoAlarm(floatsat_core_t *handle);
+static void Core_OnPhotoAlarm(rtc_handle_t *rtc);
+static void Core_OnPhotoFinish(floatsat_core_t *handle);
+static floatsat_err_t get_next_photo_index(const floatsat_core_t *handle, int *index);
+
+static floatsat_err_t Core_TakePhoto(floatsat_core_t *handle);
 
 static const char LOG_TAG[] = "CORE";
 
@@ -26,8 +29,9 @@ floatsat_err_t Core_Init(floatsat_core_t *handle)
         return ERR_INVALID_ARG;
     }
 
-    if(!handle->photo_info_arr || !handle->telementry_handle
-        || !handle->g_control_config || !handle->motor_handle || !handle->imu_handle){
+    if(!handle->photo_arr || !handle->telementry_handle
+        || !handle->g_control_config || !handle->motor_handle || !handle->imu_handle
+        || !handle->rtc){
         return ERR_INVALID_ARG;
     }
     floatsat_err_t ret = ERR_OK;
@@ -60,22 +64,267 @@ void Task_CoreFn(void *args)
     Core_IMUCalibrate(handle, 
         CMD_IMU_CAL_FLAG_ACCEL | CMD_IMU_CAL_FLAG_GYRO | CMD_IMU_CAL_FLAG_MAG);
     
+    handle->imu_handle->calibration_data.mag_offset = IMU_MAG_OFFSET;
+    handle->imu_handle->calibration_data.mag_scale = IMU_MAG_SCALE;
+
+    vTaskDelay(pdMS_TO_TICKS(1000));
+
     while(1){
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
         // Check if there is a new command. Do not block
         // TODO: Finish core behaviour. For now we block to ease debugging
-        if(xQueueReceive(handle->cmd_queue, &handle->current_cmd, portMAX_DELAY)){
+        if(xQueueReceive(handle->cmd_queue, &handle->current_cmd, 0)){
             Core_HandleCmd(handle, &handle->current_cmd); // TODO: Check error
         }
 
-        
+        // If the commmand requested an action, perform it at the end
+        if(handle->action_flags != 0U){
+            Core_Update(handle);
+        }
+
+        Core_SendDebug(handle);
 
     }
 }
 
 
+static floatsat_err_t Core_Update(floatsat_core_t *handle)
+{
+    if(!handle){
+        return ERR_INVALID_ARG;
+    }
+    floatsat_err_t ret = ERR_OK;
 
-#pragma region mission
+    if(handle->action_flags & CORE_ACTION_UPDATE_DEBUG){
+        GOTO_ON_ERR(Core_DebugUpdate(handle), err, ret);
+        handle->action_flags &= (uint32_t)~(CORE_ACTION_UPDATE_DEBUG);
+    }
+
+    if(handle->action_flags & CORE_ACTION_UPDATE_PHOTO_ALARM){
+        GOTO_ON_ERR(Core_UpdatePhotoAlarm(handle), err, ret);
+        handle->action_flags &= (uint32_t)~CORE_ACTION_UPDATE_PHOTO_ALARM;
+    }
+
+    if(handle->action_flags & CORE_ACTION_SET_PHOTO_ALARM){
+        GOTO_ON_ERR(RTC_SetAlarm(handle->rtc, &handle->next_photo.time, 0U, Core_OnPhotoAlarm, handle), err, ret);
+        LOGI(LOG_TAG,"Create new alarm at %02u:%02u:%02u",
+            handle->next_photo.time.hours,
+            handle->next_photo.time.minutes,
+            handle->next_photo.time.seconds);
+        handle->action_flags &= (uint32_t)~CORE_ACTION_SET_PHOTO_ALARM;
+    }
+
+
+    if(handle->action_flags & CORE_ACTION_PHOTO_CLEANUP){
+        Core_OnPhotoFinish(handle);
+        handle->action_flags &= (uint32_t)~CORE_ACTION_PHOTO_CLEANUP;
+    }
+
+     if(handle->action_flags & CORE_ACTION_TAKE_PHOTO){
+        Core_TakePhoto(handle);
+        handle->action_flags &= (uint32_t)~CORE_ACTION_TAKE_PHOTO;
+    }
+
+
+
+
+    return ERR_OK;
+
+err:
+    LOGE(LOG_TAG, "Error: Error in Core update. Action flags: 0x%08x. Error code: 0x%04x", handle->action_flags, ret);
+    return ret;
+}
+
+#pragma region REGION_DEBUG
+
+static floatsat_err_t Core_DebugUpdate(floatsat_core_t *handle)
+{
+    if(!handle){
+        return ERR_INVALID_ARG;
+    }
+
+    switch (handle->debug_id)
+    {      
+    case DEBUG_PACKET_ID_NONE:
+    case DEBUG_PACKET_ID_CONTROL:
+    case DEBUG_PACKET_ID_IMU:
+        handle->g_control_config->debug_id = handle->debug_id;
+        break;
+    
+    default:
+        handle->g_control_config->debug_id = DEBUG_PACKET_ID_NONE;
+        break;
+    }
+
+    return ERR_OK;
+}
+
+static floatsat_err_t Core_SendDebug(floatsat_core_t *handle)
+{
+    static uint32_t next_send_ms = 0U;
+
+    switch (handle->debug_id)
+    {
+    case DEBUG_PACKET_ID_RTC:
+        if(HAL_GetTick() >= next_send_ms){
+            uint32_t ms = HAL_GetTick();
+            next_send_ms = ms + 1000U;
+            telemetry_packet_debug_t packet = {
+                .type = PACKET_TYPE_DEBUG,
+                .timestamp = ms,
+                .debug_id = DEBUG_PACKET_ID_RTC,
+            };
+
+            RTC_GetTimeDate(handle->rtc, &packet.rtc_time, NULL);
+            Telemetry_AddDebug(handle->telementry_handle,&packet);
+        }
+        break;
+    
+    default:
+        break;
+    }
+  
+
+    return ERR_OK;
+}
+#pragma endregion
+
+#pragma region PHOTO
+
+static floatsat_err_t Core_UpdatePhotoAlarm(floatsat_core_t *handle)
+{
+    if(!handle){
+        return ERR_INVALID_ARG;
+    }
+    floatsat_err_t ret = ERR_OK;
+
+    int next_photo_index;
+    GOTO_ON_ERR(get_next_photo_index(handle, &next_photo_index), err, ret);
+
+    if(next_photo_index == -1){
+        LOGI(LOG_TAG,"No alarm updates required");
+        return ERR_OK;
+    }
+
+    // Do not modify the photo instruction if it is being executed
+    if(handle->mission_state != MISSION_STATE_PHOTO_BUSY){
+        handle->next_photo = handle->photo_arr[next_photo_index];
+    }
+
+
+    // The floatsat needs several seconds to reach the photo position, so we set the alarm a few seconds before scheduled
+    floatsat_time_t alarm_time;
+    GOTO_ON_ERR(
+        Time_SubtractSeconds(&handle->next_photo.time, 
+                            CORE_PHOTO_PREPARATION_TIME_S,
+                            &alarm_time),
+        err,ret);
+
+    RTC_SetAlarm(handle->rtc, &alarm_time, 0U, 
+                 &Core_OnPhotoAlarm, (void*)handle);
+
+    LOGI(LOG_TAG, "Created new alarm at %02u:%02u:%02u",
+        alarm_time.hours, alarm_time.minutes, alarm_time.seconds);
+
+    return ERR_OK;
+
+err:
+    LOGE(LOG_TAG,"Error: Error updating the alarm. Error code 0x%04x",ret);
+    return ret;
+}
+
+/// @brief Get the index of the next photo to take (The closest in time from now)
+/// @param handle 
+/// @param index 
+/// @return 
+static floatsat_err_t get_next_photo_index(const floatsat_core_t *handle, int *index)
+{
+    if(!handle || !index){
+        return ERR_INVALID_ARG;
+    }
+
+    floatsat_time_t now;
+    floatsat_err_t ret = RTC_GetTimeDate(handle->rtc, &now, NULL);
+    if(ret != ERR_OK){
+        return ret;
+    }
+    
+    int next_photo_index = -1;
+    int min_delta = INT32_MAX, delta = 0;
+    for (size_t i = 0; i < handle->photo_arr_len; i++)
+    {
+
+        delta = Time_Delta(&handle->photo_arr[i].time, &now);
+        if(delta < 0){
+            continue;
+        }
+        if(delta < min_delta){
+            min_delta = delta;
+            next_photo_index = (int)i;
+        }
+    }
+    
+    *index = next_photo_index;
+
+    return ERR_OK;
+}
+
+
+static void Core_OnPhotoAlarm(rtc_handle_t *rtc)
+{
+    floatsat_core_t *handle = (floatsat_core_t*)rtc->ctx;
+    
+    // RTC and telemetry functions are not ISR safe, becuase they use non-ISR freeRTOS functions
+    // To work around this, we raise a lazy action flag so that the Core calls the corresponding function
+    // duirng its behavior update
+
+    switch (handle->mission_state)
+    {
+    case MISSION_STATE_PHOTO_IDLE:
+        handle->g_control_config->target_angle = handle->next_photo.angle;
+
+        handle->mission_state = MISSION_STATE_PHOTO_MOVING;
+        handle->action_flags |= CORE_ACTION_SET_PHOTO_ALARM;
+        break;
+
+    case MISSION_STATE_PHOTO_MOVING:
+        handle->mission_state = MISSION_STATE_PHOTO_BUSY;
+        handle->action_flags |= CORE_ACTION_TAKE_PHOTO;
+        break;
+    
+    default:
+        break;
+    }
+
+}
+
+static floatsat_err_t Core_TakePhoto(floatsat_core_t *handle)
+{
+    telemetry_packet_cmd_t cmd = {
+        .type = PACKET_TYPE_CMD,
+        .cmd = {
+            .cmd_id = EXT_CMD_TAKE_PHOTO,
+            .args.photo_amount = handle->next_photo.amount
+        },
+    };
+
+    Telemetry_AddCommand(handle->telementry_handle, &cmd);
+
+    return ERR_OK;
+}
+
+static void Core_OnPhotoFinish(floatsat_core_t *handle)
+{
+    handle->mission_state = MISSION_STATE_PHOTO_IDLE;
+    handle->action_flags |= CORE_ACTION_UPDATE_PHOTO_ALARM;
+
+    LOGI(LOG_TAG,"Photo taken successfully!");
+}
+
+
+#pragma endregion
+
 
 __attribute__((unused))
 static floatsat_err_t Core_Mission_Playground(floatsat_core_t *handle)
@@ -88,31 +337,15 @@ static floatsat_err_t Core_Mission_Playground(floatsat_core_t *handle)
 
     return ERR_OK;
 }
-
-#pragma endregion
-
-
 #pragma region command_handling
 
-STATIC floatsat_err_t Core_HandleCmd(floatsat_core_t *handle, floatsat_cmd_t *cmd)
+static floatsat_err_t Core_HandleCmd(floatsat_core_t *handle, floatsat_cmd_t *cmd)
 {
-    bool free_pending = false;
     if(!handle || !cmd){
         return ERR_INVALID_ARG;
     }
     floatsat_err_t ret = ERR_OK;
-
-#ifdef TRACE
-    static bool trace_start = true;
-
-    if(trace_start){
-        xTraceEnable(TRC_START);
-        trace_start = false;
-    }
-
-#endif
-
-    free_pending = cmd_used_malloc(cmd->cmd_id);
+    // free_pending = cmd_used_malloc(cmd->cmd_id);
     switch (cmd->cmd_id)
     {
         case CMD_ID_CONTROL_INFO:
@@ -125,40 +358,17 @@ STATIC floatsat_err_t Core_HandleCmd(floatsat_core_t *handle, floatsat_cmd_t *cm
                     (double)handle->g_control_config->target_angle);
             
             break;
-        case CMD_ID_CONTROL_SET:
-            GOTO_ON_ERR(Core_SetControl(handle, cmd), err, ret);
 
+        case CMD_ID_CONTROL_MODIFY:
+            Core_SetControl(handle, cmd);
             break;
-
-        case CMD_ID_CONTROL_ANGLE:
-            taskENTER_CRITICAL();
-            memcpy(&handle->g_control_config->target_angle, &cmd->params, sizeof(float));
-            taskEXIT_CRITICAL();
-            LOGI(LOG_TAG,"Set target angle to: %f",(double)handle->g_control_config->target_angle);
-            break;
-
-        case CMD_ID_CONTROL_DEBUG:
-            taskENTER_CRITICAL();
-            memcpy(&handle->g_control_config->debug_id, &cmd->params, sizeof(uint8_t));
-            taskEXIT_CRITICAL();
-            LOGI(LOG_TAG, "Changed control debug packet ID to %u", handle->g_control_config->debug_id);
-            break;
-
-        case CMD_ID_CONTROL_ENABLE:
-            handle->g_control_config->control_active = true;
-            LOGI(LOG_TAG,"Control loop enabled");
-            break;
-
-        case CMD_ID_CONTROL_DISABLE:
-            handle->g_control_config->control_active = false;
-            LOGI(LOG_TAG,"Control loop disabled");
-            break;
+        
 
         case CMD_ID_MISSION_INFO:
             LOGI(LOG_TAG,"(INFO_MISSION) Current mission ID: %u", handle->mission_id);
             break;
         case CMD_ID_MISSION_SET:
-            GOTO_ON_ERR(Core_ChangeMission(handle, (uint32_t)cmd->params), err, ret);
+            GOTO_ON_ERR(Core_ChangeMission(handle, cmd->mission_args.mission_id), err, ret);
             break;
 
 
@@ -166,39 +376,50 @@ STATIC floatsat_err_t Core_HandleCmd(floatsat_core_t *handle, floatsat_cmd_t *cm
             Core_PrintPhotoInfo(handle);
             break;
         case CMD_ID_PHOTO_ADD:
-            // GOTO_ON_ERR(Core_AddPhoto(handle, (photo_info_t*)cmd->params), err, ret);
-            // vTaskDelay(100);
-            // xTraceDisable();
+            GOTO_ON_ERR(Core_AddPhoto(handle,&cmd->photo_args.photo ), err, ret);
             break;
 
+        case CMD_ID_PHOTO_EDIT:
+            GOTO_ON_ERR(Core_EditPhoto(handle, &cmd->photo_args.photo, 
+                cmd->photo_args.index, cmd->photo_args.action_flags), err, ret);
             break;
+
+        case CMD_ID_PHOTO_REMOVE:
+            GOTO_ON_ERR(Core_RemovePhoto(handle, cmd->photo_args.index), err, ret);
+            break;
+
         case CMD_ID_PHOTO_RESET:
             GOTO_ON_ERR(Core_ResetPhotos(handle), err, ret);
+            break;
 
+        case CMD_ID_PHOTO_TAKE:
+            GOTO_ON_ERR(Core_TakePhoto(handle), err, ret);
+            break;
+
+        case CMD_ID_PHOTO_MOVE:
+            GOTO_ON_ERR(Core_MovePhoto(handle, cmd->photo_args.index, cmd->photo_args.dest_index), err, ret);
             break;
 
         case CMD_ID_IMU_READ: {
-            uint32_t flags = 0U;
-            memcpy(&flags, &cmd->params, sizeof(uint32_t));
-            GOTO_ON_ERR(Core_ReadIMU(handle, flags),err, ret);
+            GOTO_ON_ERR(Core_ReadIMU(handle, cmd->imu_args.action_flags),err, ret);
             break;
         }
 
         case CMD_ID_IMU_CALIBRATE: {
-            uint32_t flags = 0U;
-            memcpy(&flags, &cmd->params, sizeof(uint32_t));
-            GOTO_ON_ERR(Core_IMUCalibrate(handle, flags),err, ret);
+            GOTO_ON_ERR(Core_IMUCalibrate(handle, cmd->imu_args.action_flags),err, ret);
             break;
         }
             
 
         case CMD_ID_MOTOR_PWM_SET:{
-            float val = 0.0f;
-            memcpy(&val, &cmd->params, sizeof(float));
-            GOTO_ON_ERR(Motor_SetDutyCycle(handle->motor_handle, val), err, ret);
-            LOGI(LOG_TAG,"Motor duty set to: %.4f",(double)val);
+            GOTO_ON_ERR(Motor_SetDutyCycle(handle->motor_handle, cmd->motor_args.pwm_val), err, ret);
+            LOGI(LOG_TAG,"Motor duty set to: %.4f",(double)cmd->motor_args.pwm_val);
             break;
-        }   
+        }
+
+        case CMD_ID_SYSCTL: {
+            GOTO_ON_ERR(Core_Sysctl(handle, cmd), err, ret);
+        }
             
     
 
@@ -207,232 +428,11 @@ STATIC floatsat_err_t Core_HandleCmd(floatsat_core_t *handle, floatsat_cmd_t *cm
         break;
     }
 
-    if(free_pending){
-        free(cmd->params);
-        cmd->params = NULL;
-    }
-
-
     return ERR_OK;
 
 err:
-    if(free_pending){
-        free(cmd->params);
-        cmd->params = NULL;
-    }
+
     return ret; 
-}
-
-STATIC floatsat_err_t Core_SetControl(floatsat_core_t *handle, floatsat_cmd_t *cmd)
-{
-    if(!handle || ! cmd){
-        return ERR_INVALID_ARG;
-    }
-    floatsat_args_set_control_t *params = (floatsat_args_set_control_t*)cmd->params;
-    
-    taskENTER_CRITICAL();
-    handle->g_control_config->params.k_theta = params->control_params[0];
-    handle->g_control_config->params.k_p = params->control_params[1];
-    handle->g_control_config->params.k_i = params->control_params[2];
-
-
-    if(params->control_type != CONTROL_TYPE_NO_CHANGE){
-        handle->g_control_config->control_type = params->control_type;
-    }
-    taskEXIT_CRITICAL();
-    LOGI(LOG_TAG,"Control updated: {Type = %u. Params = [%f %f %f]}",
-            handle->g_control_config->control_type,
-            (double)handle->g_control_config->params.k_theta, (double)handle->g_control_config->params.k_p,
-            (double)handle->g_control_config->params.k_i);
-
-
-    return ERR_OK;
-}
-
-STATIC floatsat_err_t Core_ChangeMission(floatsat_core_t *handle, uint32_t mission)
-{
-    // Set the flag for mission change 
-    handle->action_flags |= (CORE_ACTION_FLAG_CHANGE_MISSION);
-    UNUSED(mission);
-
-    return ERR_OK;
-}
-
-__attribute__((unused))
-STATIC floatsat_err_t Core_AddPhoto(floatsat_core_t *handle, photo_info_t *photo_info)
-{
-    if(handle->last_photo_index >= CORE_MAX_PHOTO_INSTRUCTIONS){
-        return ERR_CORE_MAX_PHOTOS;
-    }
-
-    // TODO: Validate params
-    if(photo_info->angle < 0 || photo_info->angle >= 360){
-        LOGE(LOG_TAG,"Error: Invalid angle for photo (%f). Must be in the range [0 360)",(double)photo_info->angle);
-        return ERR_INVALID_ARG;
-    }
-
-    handle->photo_info_arr[handle->last_photo_index++] = *photo_info;
-
-    return ERR_OK;
-}
-
-STATIC floatsat_err_t Core_ResetPhotos(floatsat_core_t *handle)
-{
-    if(!handle){
-        return ERR_INVALID_ARG;
-    }
-    // This is a lazy operation (done at the very end) because we don't want to 
-    // interrupt the floatsat if it is currently taking a photo
-    handle->action_flags |= CORE_ACTION_FLAG_RESET_PHOTOS;
-    return ERR_OK;
-
-}
-
-STATIC void Core_PrintPhotoInfo(floatsat_core_t *handle)
-{
-    PRINTF("%-8s | %-8s | %-12s |\n","Time","Angle","Duration");
-    PRINTF("---------|----------|--------------|\n");
-
-    for (size_t i = 0; i < handle->last_photo_index; i++)
-    {
-        PRINTF("%02u:%02u:%02u | %8.2f | %12u\n",
-            handle->photo_info_arr[i].time.hours, 
-            handle->photo_info_arr[i].time.minutes, 
-            handle->photo_info_arr[i].time.seconds,
-            (double)handle->photo_info_arr[i].angle,
-            handle->photo_info_arr[i].duration_ms);
-    }
-    
-
-
-}
-
-static floatsat_err_t Core_ReadIMU(floatsat_core_t *handle, uint32_t flags)
-{
-    if(!handle || flags == 0U){
-        return ERR_INVALID_ARG;
-    }
-    floatsat_err_t ret = ERR_OK;
-    IMU_data_raw_t data_raw = {0};
-    IMU_data_t data = {0};
-
-
-    if((flags & CMD_READ_IMU_FLAG_RAW) > 0U){
-        GOTO_ON_ERR(IMU_ReadDataRaw(handle->imu_handle, &data_raw), err, ret);
-
-        
-
-
-    }else{
-        GOTO_ON_ERR(IMU_ReadData(handle->imu_handle, &data),err, ret);
-    }
-
-    return ERR_OK;
-
-err:
-    LOGE(LOG_TAG,"Error reading IMU. Code: 0x%04x", ret);
-    return ret;
-}
-
-static floatsat_err_t Core_IMUCalibrate(floatsat_core_t *handle, uint32_t flags)
-{
-    if(!handle){
-        return ERR_INVALID_ARG;
-    }
-    floatsat_err_t ret = ERR_OK;
-
-    if(flags & CMD_IMU_CAL_FLAG_GYRO){
-        LOGI(LOG_TAG, "Starting gyroscope calibration...");
-        GOTO_ON_ERR(Core_IMUCalibrate_Gyro(handle), err, ret);
-
-        LOGI(LOG_TAG, "Gyroscope calibration complete. Offsets: {%f %f %f}",
-        (double)handle->imu_handle->calibration_data.gyro_offset.x,
-        (double)handle->imu_handle->calibration_data.gyro_offset.y,
-        (double)handle->imu_handle->calibration_data.gyro_offset.z
-        );
-    }
-
-    if(flags & CMD_IMU_CAL_FLAG_ACCEL){
-        LOGI(LOG_TAG, "Starting accelerometer calibration");
-    }
-
-    if(flags & CMD_IMU_CAL_FLAG_MAG){
-        LOGI(LOG_TAG, "Starting magnetometer calibration");
-    }
-
-    if(flags == (CMD_IMU_CAL_FLAG_ACCEL | CMD_IMU_CAL_FLAG_GYRO | CMD_IMU_CAL_FLAG_MAG)){
-        handle->imu_handle->is_calibrated = true;
-    }
-
-    return ERR_OK;
-err:
-    LOGE(LOG_TAG,"Error calibrating IMU");
-    return ret;
-}
-
-static floatsat_err_t Core_IMUCalibrate_Gyro(floatsat_core_t *handle)
-{
-    if(!handle){
-        return ERR_INVALID_ARG;
-    }
-
-    IMU_data_t imu_data = {0};
-    timestamp_t last_read_ms = 0U, now_ms = 0U;
-    size_t i = 0U;
-    Vec3_t gyro_bias_avg = {0};
-
-    taskENTER_CRITICAL();
-    handle->imu_handle->calibration_data.gyro_offset = (Vec3_t){0};
-    taskEXIT_CRITICAL();
-
-    while(++i <= IMU_CAL_GYRO_SAMPLES)
-    {
-        DataBus_ReadIMU(handle->data_bus_reader, &imu_data, &now_ms);
-        if(now_ms == last_read_ms && i != 0){
-            i--; // No new IMU read, repeat the step
-            continue;
-        }
-        last_read_ms = now_ms;
-        gyro_bias_avg.x += imu_data.gyro.x;
-        gyro_bias_avg.y += imu_data.gyro.y;
-        gyro_bias_avg.z += imu_data.gyro.z;
-
-        // LOGI(LOG_TAG,"Gyro sample %u / %u",i , IMU_CAL_GYRO_SAMPLES);
-        vTaskDelay(pdMS_TO_TICKS(IMU_CAL_GYRO_SAMPLE_PERIOD_MS));
-    }
-
-    gyro_bias_avg.x /= IMU_CAL_GYRO_SAMPLES;
-    gyro_bias_avg.y /= IMU_CAL_GYRO_SAMPLES;
-    gyro_bias_avg.z /= IMU_CAL_GYRO_SAMPLES;
-
-    gyro_bias_avg = Vec_SMult(&gyro_bias_avg, RADS_TO_MDPS);
-
-    taskENTER_CRITICAL();
-    handle->imu_handle->calibration_data.gyro_offset = gyro_bias_avg;
-    taskEXIT_CRITICAL();
-
-    return ERR_OK;
-}
-
-#pragma endregion
-
-#pragma region MISC
-
-// List of CMD IDs that use malloc and require freeing
-static const uint8_t malloc_users_cmd_id[] = {
-    CMD_ID_CONTROL_SET, CMD_ID_PHOTO_ADD
-};
-
-static bool cmd_used_malloc(uint8_t cmd_id)
-{
-    for (size_t i = 0; i < sizeof(malloc_users_cmd_id); i++)
-    {
-        if(cmd_id == malloc_users_cmd_id[i]){
-            return true;
-        }
-    }
-    
-    return false;
 }
 
 #pragma endregion

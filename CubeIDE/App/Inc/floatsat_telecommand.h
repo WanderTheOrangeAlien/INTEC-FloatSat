@@ -16,16 +16,11 @@
 #define MSG_RX_STATE_WAIT_HEADER      0
 #define MSG_RX_STATE_WAIT_MSG         1
 
-#define CMD_MSG_SYNC                  0xCAFE
 
 #define CMD_DMA_BUFFER_LEN            1024
 #define CMD_MSG_BUFFER_LEN            CMD_DMA_BUFFER_LEN
 
-typedef struct floatsat_msg_header_t {
-    uint16_t sync;
-    uint16_t len;
-    uint16_t crc;
-}floatsat_msg_header_t;
+
 
 
 typedef struct cmd_manager_handle_t {

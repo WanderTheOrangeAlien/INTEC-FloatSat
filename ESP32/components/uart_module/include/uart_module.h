@@ -6,6 +6,8 @@
 #include "esp_err.h"
 #include "esp_log.h"
 
+#include "fs_packets.h"
+
 #define UART_TASK_STACK_DEPTH       2048
 #define UART_TASK_PRIORITY          5
 
@@ -13,27 +15,17 @@
 #define UART_RX_STATE_WAIT_HEADER   0
 #define UART_RX_STATE_WAIT_BODY     1
 
-#define PACKET_TYPE_FAST            0   // Only the orientation vector
-#define PACKET_TYPE_EXTENDED        1   // Orientation plus all sensors and subsystem health
-#define PACKET_TYPE_INFO_HEADER     2
-#define PACKET_TYPE_INFO_CHUNK      3
-#define PACKET_TYPE_DEBUG           4
+// #define PACKET_TYPE_FAST            0   // Only the orientation vector
+// #define PACKET_TYPE_EXTENDED        1   // Orientation plus all sensors and subsystem health
+// #define PACKET_TYPE_INFO_HEADER     2
+// #define PACKET_TYPE_INFO_CHUNK      3
+// #define PACKET_TYPE_DEBUG           4
+// #define PACKET_TYPE_CMD             5
 
 #define INFO_CHUNK_DATA_SIZE        32U
 
 
 typedef uint64_t timestamp_t;
-
-/* From FloatSat project */
-typedef struct __attribute__((packed)) info_packet_header_t {
-    uint8_t type;                // To tell apart from telemetry packets
-    timestamp_t timestamp;
-    uint8_t nchunks;
-    uint8_t last_chunk_size;
-    uint16_t crc;
-
-}info_packet_header_t;
-
 
 
 typedef void (*on_rx_cplt_cb_t)(uint8_t *buffer, size_t len, uint8_t packet_type);
@@ -74,6 +66,6 @@ typedef struct uart_module_handle_t {
 }uart_module_handle_t;
 
 esp_err_t UART_Init(uart_module_handle_t *handle);
-
+esp_err_t UART_SendFloatsatCmd(uart_module_handle_t *handle, const char *command);
 
 #endif

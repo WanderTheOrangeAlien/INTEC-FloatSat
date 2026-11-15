@@ -4,12 +4,13 @@ The row assignments below are the whole screen layout. The console puts the
 prompt right after STATUS_ROWS and the log below it.
 """
 from .console import Console
-from .protocol import ControlDebug, FastTelemetry, ImuDebug, Vec3
+from .protocol import ControlDebug, FastTelemetry, ImuDebug, RtcDebug, Vec3
 
 ROW_FAST = 1        # 1 row
 ROW_IMU = 2         # 3 rows (accel, gyro, mag)
 ROW_CONTROL = 5     # 1 row
-STATUS_ROWS = 5     # number of fixed rows above the prompt (the last row used)
+ROW_RTC = 6         # 1 row
+STATUS_ROWS = 6     # number of fixed rows above the prompt (the last row used)
 
 
 def _vec(label: str, v: Vec3) -> str:
@@ -39,3 +40,8 @@ def show_packet(console: Console, packet):
                            f"w {packet.w:>8.3f} -> {packet.w_ref:>8.3f}  "
                            f"pwm {packet.pwm_out:>6.3f}  "
                            f"rw {packet.rw_speed:>8.2f}")
+
+        case RtcDebug():
+            console.status(ROW_RTC,
+                           f"({packet.timestamp}) rtc  "
+                           f"{packet.hours:02d}:{packet.minutes:02d}:{packet.seconds:02d}")

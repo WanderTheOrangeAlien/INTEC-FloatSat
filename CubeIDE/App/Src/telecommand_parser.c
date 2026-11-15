@@ -22,6 +22,12 @@ static floatsat_err_t parse_cmd_motor(parser_ctx_t *ctx, floatsat_cmd_t *cmd);
 
 static floatsat_err_t parse_cmd_system(parser_ctx_t *ctx, floatsat_cmd_t *cmd);
 
+static floatsat_err_t fill_photo_fields(const struct arg_dbl *angle,
+                                        const struct arg_str *time,
+                                        const struct arg_int *amount,
+                                        photo_info_t *photo,
+                                        uint32_t *field_mask);
+
 static int cmd_init_control(void);
 static int cmd_init_mission(void);
 static int cmd_init_photo(void);
@@ -44,30 +50,15 @@ static struct {
     struct arg_end *end;
 }argtable_control_info;
 
-// Format: control [-t <type>] -p <params>
+// Format control [-t <type> -p <params> -a <angle> --debug-id <debug_id> -e -d]
 static struct {
     struct arg_str *type;
     struct arg_str *params;
-    struct arg_end *end;
-}argtable_control_set;
-
-// Format: control -a <angle>
-static struct {
     struct arg_dbl *angle;
-    struct arg_end *end;
-}argtable_control_angle;
-
-///Format: control [--debug-id <debug_id>] [-e] [-d] 
-static struct {
-    struct arg_int *debug_id;
-    struct arg_end *end;
-}argtable_control_debug;
-
-static struct {
     struct arg_lit *enable;
     struct arg_lit *disable;
     struct arg_end *end;
-}argtable_control_endis;
+}argtable_control;
 
 
 /* =========================== Mission command =========================== */
@@ -91,20 +82,51 @@ static struct {
     struct arg_end *end;
 }argtable_photo_info;
 
-// Format: photo add -a <angle> -t <time> -d <duration>
+// Format: photo add -a <angle> -t <time> -n <amount>
 static struct {
     struct arg_rex *subcmd;
     struct arg_dbl *angle;
     struct arg_str *time;
-    struct arg_int *duration;
+    struct arg_int *amount;
     struct arg_end *end;
 }argtable_photo_add;
+
+// Format: photo edit <index> -a <angle> -t <time> -n <amount>
+static struct {
+    struct arg_rex *subcmd;
+    struct arg_int *index;
+    struct arg_dbl *angle;
+    struct arg_str *time;
+    struct arg_int *amount;
+    struct arg_end *end;
+}argtable_photo_edit;
+
+// Format photo rm <index>
+static struct {
+    struct arg_rex *subcmd;
+    struct arg_int *index;
+    struct arg_end *end;
+}argtable_photo_remove;
+
+//format photo move <src> <dest>
+static struct {
+    struct arg_rex *subcmd;
+    struct arg_int *src;
+    struct arg_int *dest;
+    struct arg_end *end;
+}argtable_photo_move;
 
 // Format: photo reset
 static struct {
     struct arg_rex *subcmd;
     struct arg_end *end;
 }argtable_photo_reset;
+
+// Format: photo take
+static struct {
+    struct arg_rex *subcmd;
+    struct arg_end *end;
+}argtable_photo_take;
 
 /* =========================== imu command =========================== */
 // Format imu read [-g -a -m -r -f]
@@ -114,7 +136,6 @@ static struct {
     struct arg_lit *opts_acc;
     struct arg_lit *opts_mag;
     struct arg_lit *opts_raw;
-    struct arg_lit *opts_filter;
     struct arg_end *end;
 }argtable_imu_read;
 
@@ -136,8 +157,12 @@ static struct {
 }argtable_motor_pwn;
 
 /* =========================== System command =========================== */
+// Format: sys [--reset] [--debug-id <debug_id>] 
+
 static struct {
     struct arg_lit *reset;
+    struct arg_int *debug_id;
+    struct arg_str *invoke_cb;
     struct arg_end *end;
 }argtable_system;
 
@@ -212,25 +237,13 @@ static int cmd_init_control(void)
     argtable_control_info.info          =   arg_lit1("i","info","Show control information");
     argtable_control_info.end           =   arg_end(CMD_MAX_ERRORS);
 
-    // Format: control [-t <type>] -p <params>
-    argtable_control_set.type           =   arg_str0("t", "type", "PID|LQR", "Controller type");
-    argtable_control_set.params         =   arg_str1("p","params","<float>,<float>...",NULL);
-    argtable_control_set.end            =   arg_end(CMD_MAX_ERRORS);
-
-    // Format: control -a <angle>
-    argtable_control_angle.angle        =   arg_dbl1("a","angle","float","Target azimuth angle");
-    argtable_control_angle.end          =   arg_end(CMD_MAX_ERRORS);
-
-    // Format: control --debug-id id
-    argtable_control_debug.debug_id     =   arg_int1(NULL,"debug-id","DEBUG_PACKET_ID","Debug packet ID to send");
-    argtable_control_debug.end          =   arg_end(CMD_MAX_ERRORS);
-
-    // Format: control [--en] [--dis]
-    argtable_control_endis.enable       =   arg_lit0("e","enable","Enable control loop");
-    argtable_control_endis.disable      =   arg_lit0("d","disable","Disable control loop");
-    argtable_control_endis.end          =   arg_end(CMD_MAX_ERRORS);
-    
-
+    // Format control [-t <type> -p <parasms> -a <angle> --debug-id <debug_id> -e -d]
+    argtable_control.type               =   arg_str0("t","type","PID|LQR","Control type");
+    argtable_control.params             =   arg_str0("p","params","k_theta,k_i,k_p","Controller gains, separated by commas without spaces");
+    argtable_control.angle              =   arg_dbl0("a","angle","float (-180,180]","Target angle");
+    argtable_control.enable             =   arg_lit0("e","enable","Enable the control loop");
+    argtable_control.disable            =   arg_lit0("d","disable","Disable the control loop");
+    argtable_control.end                =   arg_end(CMD_MAX_ERRORS);
 
     // TODO: Check for NULL pointers!
 
@@ -259,17 +272,42 @@ static int cmd_init_photo(void)
     argtable_photo_info.info            =   arg_lit1("i","info","Show photo information");
     argtable_photo_info.end             =   arg_end(CMD_MAX_ERRORS);
 
-    // Format: photo add -a <angle> -t <time> -d <duration>
+    // Format: photo add -a <angle> -t <time> -d <c>
     argtable_photo_add.subcmd           =   arg_rex1(NULL, NULL, "add", NULL, ARG_REX_ICASE, NULL);
-    argtable_photo_add.angle            =   arg_dbl1("a", "angle","double", "Azimuth angles of the photo");
+    argtable_photo_add.angle            =   arg_dbl1("a", "angle","float", "Azimuth angle of the photo in the range (-180,180]");
     argtable_photo_add.time             =   arg_str1("t", "time", "HH:mm:ss",
                                                         "Moment to take the photo. Specified as HH:mm:ss of Standard Atlantic Time (UTC-4)");
-    argtable_photo_add.duration         =   arg_int1("d", "duration", "uint", "Duration in milliseconds");
+    argtable_photo_add.amount           =   arg_int1("n", "amount", "uint", "Amount of photos to take");
     argtable_photo_add.end              =   arg_end(CMD_MAX_ERRORS);
+
+    // Format: photo edit <index> -a <angle> -t <time> -d <amount>
+    argtable_photo_edit.subcmd          =   arg_rex1(NULL, NULL, "edit", NULL, ARG_REX_ICASE, NULL);
+    argtable_photo_edit.index           =   arg_int1(NULL, NULL, "uint8_t", "Index of the photo cmd to edit");
+    argtable_photo_edit.angle           =   arg_dbl0("a", "angle","double", "Azimuth angle of the photo in the range (-180,180]o");
+    argtable_photo_edit.time            =   arg_str0("t", "time", "HH:mm:ss",
+                                                        "Moment to take the photo. Specified as HH:mm:ss of Standard Atlantic Time (UTC-4)");
+    argtable_photo_edit.amount        =   arg_int0("n", "amount", "uint", "Amount of photos to take");
+    argtable_photo_edit.end             =   arg_end(CMD_MAX_ERRORS);
+
+    // Format photo rm <index>
+    argtable_photo_remove.subcmd        =   arg_rex1(NULL, NULL, "rm", NULL, ARG_REX_ICASE, NULL);
+    argtable_photo_remove.index         =   arg_int1(NULL, NULL, "uint8_t","Index of the photo to remove");
+    argtable_photo_remove.end           =   arg_end(CMD_MAX_ERRORS);
+    
+    // Format: photo move <src> <dest>
+    argtable_photo_move.subcmd          =   arg_rex1(NULL,NULL, "move", NULL, ARG_REX_ICASE, NULL);
+    argtable_photo_move.src             =   arg_int1(NULL, NULL, "uint8_t","Index of the entry to move");
+    argtable_photo_move.dest            =   arg_int1(NULL, NULL, "uint8_t","Destination index");
+    argtable_photo_move.end             =   arg_end(CMD_MAX_ERRORS);
+
 
     // Format: photo reset
     argtable_photo_reset.subcmd         =   arg_rex1(NULL, NULL, "reset", NULL, ARG_REX_ICASE, "Reset subcommand");
     argtable_photo_reset.end            =   arg_end(CMD_MAX_ERRORS);
+
+    // Format: photo take
+    argtable_photo_take.subcmd          =   arg_rex1(NULL, NULL, "take", NULL, ARG_REX_ICASE, "Take a photo");
+    argtable_photo_take.end             =   arg_end(CMD_MAX_ERRORS);
 
     return 0;
 }
@@ -281,8 +319,6 @@ static int cmd_init_imu(void)
     argtable_imu_read.opts_gyro         =   arg_lit0("g","gyro","Include gyroscope readings");
     argtable_imu_read.opts_acc          =   arg_lit0("a","acc","Include accelerometer readings");
     argtable_imu_read.opts_mag          =   arg_lit0("m","mag","Include magnetometer readings");
-    argtable_imu_read.opts_filter       =   arg_lit0("f","filter","Include Madgwick filter estimation");
-
 
     // Format imu cal [-g -a -m]
     argtable_imu_cal.subcmd             = arg_rex1(NULL, NULL, "cal", NULL, ARG_REX_ICASE, "Calibrate IMU");
@@ -304,6 +340,8 @@ static int cmd_init_motor(void)
 
 static int cmd_init_system(void){
     argtable_system.reset               = arg_lit0(NULL,"reset","Reset the microcontroller");
+    argtable_system.debug_id            = arg_int0(NULL,"debug-id","uint8_t", "Set the debug packet ID");
+    argtable_system.invoke_cb           = arg_str0(NULL,"invoke-cb", "string", "Invoke a system callback");
     argtable_system.end                 = arg_end(CMD_MAX_ERRORS);
     
     return 0;
@@ -326,14 +364,10 @@ static floatsat_err_t parse_cmd_control(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
     }
 
     floatsat_err_t ret = ERR_OK;
-    int nerrors_arr[CMD_CONTROL_N_SUBCMD] = {0};
+    int nerrors_arr[2] = {0};
 
     nerrors_arr[0] = arg_parse(ctx->argc,ctx->argv, (void**)&argtable_control_info);
-    nerrors_arr[1] = arg_parse(ctx->argc,ctx->argv, (void**)&argtable_control_set);
-    nerrors_arr[2] = arg_parse(ctx->argc,ctx->argv, (void**)&argtable_control_angle);
-    nerrors_arr[3] = arg_parse(ctx->argc, ctx->argv, (void**)&argtable_control_debug);
-    nerrors_arr[4] = arg_parse(ctx->argc, ctx->argv, (void**)&argtable_control_endis);
-
+    nerrors_arr[1] = arg_parse(ctx->argc,ctx->argv, (void**)&argtable_control);
 
     *cmd = (floatsat_cmd_t){0}; 
 
@@ -342,77 +376,57 @@ static floatsat_err_t parse_cmd_control(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
         cmd->cmd_id = CMD_ID_CONTROL_INFO;
     
     }else if(!nerrors_arr[1]){
-        // Format: control [-t <type>] <params>
-        cmd->cmd_id = CMD_ID_CONTROL_SET;
-        
-        // TODO: Is there a way to avoid malloc? 
-        cmd->params = calloc(1U, sizeof(floatsat_args_set_control_t)); 
+        // Format control [-t <type> -p <params> -a <angle> --debug-id <debug_id> -e -d]
 
-        if(cmd->params == NULL){
-            return ERR_OUT_OF_MEM;
-        }
-
-        // Typed pointer shortcut to avoid casting at every call 
-        floatsat_args_set_control_t *cmd_params = (floatsat_args_set_control_t*)cmd->params;
-
-        // Check for controller type
-        if(argtable_control_set.type->count > 0){
-
-            if(strcmp(argtable_control_set.type->sval[0],"PID") == 0){
-                // PID controller type selected
-                cmd_params->control_type = CONTROL_TYPE_PID;
-
-            }else if(strcmp(argtable_control_set.type->sval[0],"LQR") == 0){
-                // LQR controller type selected
-                cmd_params->control_type = CONTROL_TYPE_LQR;
-
-            }else{
-                // Invalid type
-                LOGE(LOG_TAG,"Invalid controller type: %s", argtable_control_set.type->sval[0]);
-                return ERR_INVALID_CMD;
+        cmd->cmd_id = CMD_ID_CONTROL_MODIFY;
+        if(argtable_control.type->count > 0){
+            cmd->control_args.action_flags |= CMD_CONTROL_FLAG_TYPE;
+            
+            if(strcmp(argtable_control.type->sval[0], "PID") == 0){
+                cmd->control_args.control_type = CONTROL_TYPE_PID;
+            }else if(strcmp(argtable_control.type->sval[0], "LQR") == 0){
+                cmd->control_args.control_type = CONTROL_TYPE_LQR;
+            }else {
+                LOGE(LOG_TAG,"Error: Invalid control type");
+                goto err;
             }
-        }else{
-            cmd_params->control_type = CONTROL_TYPE_NO_CHANGE;
-        }
-        
-        // Parse control params into 
-        ret = parse_control_params(cmd_params->control_params, argtable_control_set.params->sval[0]);
 
-        if(ret != ERR_OK){
-            LOGE(LOG_TAG,"Control set: Invalid parameter string. Error: 0x%04x",ret);
-            free(cmd->params);
-            cmd->params = NULL;
-            return ret;
         }
 
+        if(argtable_control.params->count > 0){
+            float params[3] = {0};
+            GOTO_ON_ERR_LOG(parse_control_params(params, argtable_control.params->sval[0]),
+                err, ret, LOG_TAG, "Error: Invalid control param format");
 
-    }else if(!nerrors_arr[2]){
-        float angle = (float)argtable_control_angle.angle->dval[0];
+            cmd->control_args.action_flags |= CMD_CONTROL_FLAG_PARAM;
 
-        if(angle < 0 || angle >= 360){
-            return ERR_INVALID_CMD;
+            cmd->control_args.k_theta   = params[0];
+            cmd->control_args.k_p       = params[1];
+            cmd->control_args.k_i       = params[2];
         }
-        cmd->cmd_id = CMD_ID_CONTROL_ANGLE;
-        memcpy(&cmd->params, &angle, sizeof(float));
 
-    }else if(!nerrors_arr[3]){
-        cmd->cmd_id = CMD_ID_CONTROL_DEBUG;
-        int id = argtable_control_debug.debug_id->ival[0];
-        if(id < 0){
-            return ERR_INVALID_CMD;
+        if(argtable_control.angle->count > 0){
+            float angle = (float)argtable_control.angle->dval[0]; 
+            if(!(angle > -180.0f && angle <= 180.0f)){
+                goto err;
+            }
+            cmd->control_args.action_flags |= CMD_CONTROL_FLAG_ANGLE;
+            cmd->control_args.angle = (float)argtable_control.angle->dval[0];
         }
-        memcpy(&cmd->params, &id, sizeof(int));
 
+        // if(argtable_control.debug_id->count > 0){
+        //     if(argtable_control.debug_id->ival[0] < 0){
+        //         goto err;
+        //     }
+        //     cmd->control_args.action_flags |= CMD_CONTROL_FLAG_DBG_ID;
+        //     cmd->control_args.debug_id = (uint8_t)argtable_control.debug_id->ival[0];
 
+        // }
 
-
-    }else if(!nerrors_arr[4]){
-        if(argtable_control_endis.enable->count > 0){
-            cmd->cmd_id = CMD_ID_CONTROL_ENABLE;
-        }else if(argtable_control_endis.disable->count > 0){
-            cmd->cmd_id = CMD_ID_CONTROL_DISABLE;
-        }else{
-            return ERR_INVALID_CMD;
+        if(argtable_control.enable->count > 0){
+            cmd->control_args.action_flags |= CMD_CONTROL_FLAG_ENABLE;
+        }else if(argtable_control.disable->count > 0){
+            cmd->control_args.action_flags |= CMD_CONTROL_FLAG_DISABLE;
         }
     }
     
@@ -430,6 +444,11 @@ static floatsat_err_t parse_cmd_control(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
     }
 
     return ERR_OK;
+err:
+    memset(cmd, 0, sizeof(floatsat_cmd_t));
+    return ERR_INVALID_CMD;
+
+
 }
 
 STATIC floatsat_err_t parse_control_params(float *params, const char *buffer)
@@ -483,15 +502,23 @@ STATIC floatsat_err_t parse_cmd_mission(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
     }else if(!nerrors_arr[1]){
         // Format mission <mission_id>
         cmd->cmd_id = CMD_ID_MISSION_SET;
+        int mission_id = argtable_mission_set.mission_id->ival[0];
+        if(mission_id < 0){
+            LOGE(LOG_TAG,"Error: Mission ID cannot be negative");
+            goto err;
+        }
+        cmd->mission_args.mission_id = (uint8_t)mission_id;
 
-        // WARN: Treating pointer as a value. Is this the best approach? 
-        cmd->params = (void*)argtable_mission_set.mission_id->ival[0]; 
     }else{
         return ERR_INVALID_CMD;
     }
 
 
-    return ERR_OK;;
+    return ERR_OK;
+
+err: 
+    memset(cmd, 0, sizeof(floatsat_cmd_t));
+    return ERR_INVALID_CMD;
 }
 
 /* =========================== Photo command =========================== */
@@ -505,55 +532,139 @@ static floatsat_err_t parse_cmd_photo(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
 
     nerrors_arr[0] = arg_parse(ctx->argc, ctx->argv, (void**)&argtable_photo_info);
     nerrors_arr[1] = arg_parse(ctx->argc, ctx->argv, (void**)&argtable_photo_add);
-    nerrors_arr[2] = arg_parse(ctx->argc, ctx->argv, (void**)&argtable_photo_reset);
+    nerrors_arr[2] = arg_parse(ctx->argc, ctx->argv, (void**)&argtable_photo_edit);
+    nerrors_arr[3] = arg_parse(ctx->argc, ctx->argv, (void**)&argtable_photo_remove);
+    nerrors_arr[4] = arg_parse(ctx->argc, ctx->argv, (void**)&argtable_photo_reset);
+    nerrors_arr[5] = arg_parse(ctx->argc, ctx->argv, (void**)&argtable_photo_move);
+    nerrors_arr[6] = arg_parse(ctx->argc, ctx->argv, (void**)&argtable_photo_take);
 
     if(!nerrors_arr[0]){
         // Format: photo -i
         cmd->cmd_id = CMD_ID_PHOTO_INFO;
 
     }else if(!nerrors_arr[1]){
-        // Format: photo add -a <angle> -t <time> -d <duration>
+        // Format: photo add -a <angle> -t <time> nd <amount>
         cmd->cmd_id = CMD_ID_PHOTO_ADD;
 
-        cmd->params = calloc(1U, sizeof(photo_info_t));
-        photo_info_t *params = (photo_info_t*)cmd->params;
-        if(!cmd->params){
-            return ERR_OUT_OF_MEM;
-        }
-
-        // Angle
-        if(argtable_photo_add.angle->dval[0] < 0 || argtable_photo_add.angle->dval[0] >= 360){
-            goto cleanup;
-        }
-        params->angle = (float)argtable_photo_add.angle->dval[0];
-
-        // Time
-        floatsat_err_t ret = Time_ParseString(argtable_photo_add.time->sval[0], &params->time);
+        floatsat_err_t ret = fill_photo_fields(
+            argtable_photo_edit.angle,
+            argtable_photo_edit.time,
+            argtable_photo_edit.amount,
+            &cmd->photo_args.photo,
+            &cmd->photo_args.action_flags);
         if(ret != ERR_OK){
-            goto cleanup;
-
+            goto err;
         }
-
-        // Duration
-        if(argtable_photo_add.duration->ival[0] <= 0){
-            goto cleanup;
-        }
-        params->duration_ms = (uint32_t)argtable_photo_add.duration->ival[0];
 
 
     }else if(!nerrors_arr[2]){
+        // Format: photo edit <index> [-a <angle>] [-t <time>] [-d <amount>]
+        cmd->cmd_id = CMD_ID_PHOTO_EDIT;
+        
+        int index = argtable_photo_edit.index->ival[0];
+        if(index < 0){
+            LOGE(LOG_TAG, "Error: Negative photo index");
+            return ERR_INVALID_CMD;
+        }
+        cmd->photo_args.index = (uint8_t)index;
+
+       floatsat_err_t ret = fill_photo_fields(
+            argtable_photo_edit.angle,
+            argtable_photo_edit.time,
+            argtable_photo_edit.amount,
+            &cmd->photo_args.photo,
+            &cmd->photo_args.action_flags
+        );
+        if(ret != ERR_OK){
+            goto err;
+        }
+
+    }else if(!nerrors_arr[3]){
+        cmd->cmd_id = CMD_ID_PHOTO_REMOVE;
+        int index = argtable_photo_remove.index->ival[0];
+        if(index < 0){
+            LOGE(LOG_TAG,"Error: Negative photo index");
+            return ERR_INVALID_ARG;
+        }
+        cmd->photo_args.index = (uint8_t)index;
+    }
+    else if(!nerrors_arr[4]){
         // Format: photo reset
         cmd->cmd_id = CMD_ID_PHOTO_RESET;
-    }else{
+
+    }else if(!nerrors_arr[5]){
+        cmd->cmd_id = CMD_ID_PHOTO_MOVE;
+        if(argtable_photo_move.src->ival[0] < 0 || argtable_photo_move.dest->ival[0] < 0){
+            LOGE(LOG_TAG,"Error: Negative photo index");
+            return ERR_INVALID_ARG;
+        }
+
+        if(argtable_photo_move.src->ival[0] == argtable_photo_move.dest->ival[0]){
+            LOGE(LOG_TAG,"Error: Source and destination are the same");
+            return ERR_INVALID_ARG;
+        }
+
+        cmd->photo_args.index       = (uint8_t)argtable_photo_move.src->ival[0];
+        cmd->photo_args.dest_index  = (uint8_t)argtable_photo_move.dest->ival[0];
+
+
+    } else if(!nerrors_arr[6]){
+        cmd->cmd_id = CMD_ID_PHOTO_TAKE;
+
+    } else{
         return ERR_INVALID_CMD;
     }
 
     return ERR_OK;
 
-cleanup:
-    free(cmd->params);
-    cmd->params = NULL;
+err:
+    memset(cmd, 0, sizeof(floatsat_cmd_t));
     return ERR_INVALID_CMD;
+}
+
+static floatsat_err_t fill_photo_fields(const struct arg_dbl *angle,
+                                        const struct arg_str *time,
+                                        const struct arg_int *amount,
+                                        photo_info_t *photo,
+                                        uint32_t *field_mask)
+{
+    if (!angle || !time || !amount || !photo || !field_mask) {
+        return ERR_INVALID_ARG;
+    }
+
+    memset(photo, 0, sizeof(*photo));
+    *field_mask = 0U;
+
+    if (angle->count > 0) {
+        float a = (float)angle->dval[0];
+        if (!(a > -180.0f && a <= 180.0f)) {   /* also rejects NaN */
+            LOGE(LOG_TAG, "Error: Invalid photo angle");
+            return ERR_INVALID_ARG;
+        }
+        photo->angle = a;
+        *field_mask |= CMD_PHOTO_FLAG_FIELD_ANGLE;
+    }
+
+    if (time->count > 0) {
+        /* Parse once, straight into the destination */
+        if (Time_ParseString(time->sval[0], &photo->time) != ERR_OK) {
+            LOGE(LOG_TAG, "Error: Invalid photo time string");
+            return ERR_INVALID_ARG;
+        }
+        *field_mask |= CMD_PHOTO_FLAG_FIELD_TIME;
+    }
+
+    if (amount->count > 0) {
+        int d = amount->ival[0];
+        if (d <= 0 || d > CMD_MAX_PHOTO_AMOUNT_PER_INSTRUCTION) {
+            LOGE(LOG_TAG, "Error: Invalid amount");
+            return ERR_INVALID_ARG;
+        }
+        photo->amount = (uint8_t)d;
+        *field_mask |= CMD_PHOTO_FLAG_FIELD_AMOUNT;
+    }
+
+    return ERR_OK;
 }
 
 /* =========================== imu command =========================== */
@@ -569,47 +680,38 @@ static floatsat_err_t parse_cmd_imu(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
     nerrors_arr[1] = arg_parse(ctx->argc, ctx->argv, (void**)&argtable_imu_cal);
 
     if(!nerrors_arr[0]){
-        uint32_t flags = 0U;
-
         cmd->cmd_id = CMD_ID_IMU_READ;
 
         if(argtable_imu_read.opts_gyro->count > 0){
-            flags |= CMD_READ_IMU_FLAG_GYRO;
+            cmd->imu_args.action_flags |= CMD_IMU_READ_FLAG_GYRO;
         }
 
         if(argtable_imu_read.opts_acc->count > 0){
-            flags |= CMD_READ_IMU_FLAG_ACCEL;
+            cmd->imu_args.action_flags |= CMD_IMU_READ_FLAG_ACCEL;
         }
 
         if(argtable_imu_read.opts_mag->count > 0){
-            flags |= CMD_READ_IMU_FLAG_MAG;
+            cmd->imu_args.action_flags |= CMD_IMU_READ_FLAG_MAG;
         }
 
         if(argtable_imu_read.opts_raw->count > 0){
-            flags |= CMD_READ_IMU_FLAG_RAW;
+            cmd->imu_args.action_flags |= CMD_IMU_READ_FLAG_RAW;
         }
-
-        if(argtable_imu_read.opts_filter->count > 0){
-            flags |= CMD_READ_IMU_FLAG_FILTER;
-        }
-
-        memcpy(&cmd->params, &flags, sizeof(uint32_t));
 
     }else if(!nerrors_arr[1]){
         cmd->cmd_id = CMD_ID_IMU_CALIBRATE;
-        uint32_t flags = 0U;
+
         if(argtable_imu_cal.opts_gyro->count > 0){
-            flags |= CMD_IMU_CAL_FLAG_GYRO;
+            cmd->imu_args.action_flags |= CMD_IMU_CAL_FLAG_GYRO;
         }
 
         if(argtable_imu_cal.opts_accel->count > 0){
-            flags |= CMD_IMU_CAL_FLAG_ACCEL;
+            cmd->imu_args.action_flags |= CMD_IMU_CAL_FLAG_ACCEL;
         }
 
         if(argtable_imu_cal.opts_mag->count > 0){
-            flags |= CMD_IMU_CAL_FLAG_MAG;
+            cmd->imu_args.action_flags |= CMD_IMU_CAL_FLAG_MAG;
         }
-        memcpy(&cmd->params, &flags, sizeof(uint32_t));
 
     }else{
         return ERR_INVALID_CMD;
@@ -638,12 +740,11 @@ static floatsat_err_t parse_cmd_motor(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
             float val = (float)argtable_motor_pwn.pwm_val->dval[0];
 
             if(!(val >= -1.0f && val <= 1.0f)){
-                return ERR_INVALID_CMD;
+                LOGE(LOG_TAG,"Invalid PWM value. Must be in range [-1, 1]");
+                goto err;
             }
+            cmd->motor_args.pwm_val = val;
 
-            memcpy(&cmd->params, &val, sizeof(float));
-        }else{
-            cmd->params = NULL;
         }
 
     }else{
@@ -651,6 +752,10 @@ static floatsat_err_t parse_cmd_motor(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
     }
     
     return ERR_OK;
+
+err:
+    memset(cmd, 0, sizeof(floatsat_cmd_t));
+    return ERR_INVALID_ARG;
 }
 
 static floatsat_err_t parse_cmd_system(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
@@ -665,15 +770,34 @@ static floatsat_err_t parse_cmd_system(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
 
     if(!nerrors_arr[0]){
         cmd->cmd_id = CMD_ID_SYSCTL;
-        uint32_t sys_action_flag = 0U;
+
         if(argtable_system.reset->count > 0){
-            sys_action_flag |= (uint32_t)CMD_SYSCTTL_FLAG_RESET;
+            cmd->sysctl_args.action_flags |= CMD_SYSCTL_FLAG_RESET;
         }
 
-        memcpy(&cmd->params, &sys_action_flag, sizeof(uint32_t));
+        if(argtable_system.debug_id->count > 0){
+            int debug_id = argtable_system.debug_id->ival[0];
+            if(debug_id < 0 ){
+                LOGE(LOG_TAG,"Error: Negative debug ID");
+                return ERR_INVALID_CMD;
+            }
+            cmd->sysctl_args.debug_id = (uint8_t)debug_id;
+            cmd->sysctl_args.action_flags |= CMD_SYSCTL_FLAG_DBG_ID;
+        }
 
+        if(argtable_system.invoke_cb->count > 0){
+            if(strlen(argtable_system.invoke_cb->sval[0]) > CMD_SYSCTL_MAX_CB_NAME_LEN){
+                LOGE(LOG_TAG,"Error: Callback name too long. Max length is %u characters", CMD_SYSCTL_MAX_CB_NAME_LEN);
+                return ERR_INVALID_ARG;
+            }
+
+            cmd->sysctl_args.action_flags |= CMD_SYSCTL_FLAG_INVOKE_CB;
+            strncpy(cmd->sysctl_args.callback_name, argtable_system.invoke_cb->sval[0], CMD_SYSCTL_MAX_CB_NAME_LEN);
+        }
         
-    }else{
+    }
+    
+    else{
     	return ERR_INVALID_CMD;
     }
 

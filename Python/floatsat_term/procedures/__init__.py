@@ -8,10 +8,11 @@ While a procedure runs, typing `abort` cancels it (asyncio.CancelledError is
 raised inside it at its current await), so put any cleanup in a `finally`.
 To add one, write a module here and register its run() below.
 """
-from . import angle_log, control_log, motor_sweep
+from . import angle_log, control_log, mag_log, motor_sweep
 
 PROCEDURES = {
     "motor": motor_sweep.run,
     "angle": angle_log.run,
     "control": control_log.run,
+    "mag": mag_log.run,
 }

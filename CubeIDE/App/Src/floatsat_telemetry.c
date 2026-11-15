@@ -12,6 +12,7 @@ static TraceStringHandle_t xStrTelemetry;
 
 static floatsat_err_t Telemetry_SendCurrentPacket(telemetry_handle_t *handle);
 static floatsat_err_t Telemetry_SendDebugPacket(telemetry_handle_t *handle);
+static floatsat_err_t Telemetry_SendCmd(telemetry_handle_t *handle);
 STATIC floatsat_err_t Telemetry_HandleInfo(telemetry_handle_t *handle);
 static floatsat_err_t Telemetry_AddToRegistry(telemetry_handle_t *handle);
 
@@ -115,6 +116,12 @@ void Task_TelemetryFn(void *args)
             handle->packet_type_mask &= (uint8_t)~(PACKET_MASK_DEBUG);
         }
 
+        // Handle cmd packet
+        if(handle->packet_type_mask & PACKET_MASK_CMD){
+            GOTO_ON_ERR(Telemetry_SendCmd(handle), err, ret);
+            handle->packet_type_mask &= (uint8_t)~PACKET_MASK_CMD;
+        }
+
         // Handle info packet
         // If info buffer has not been acquired
         if(!handle->info_buffer){
@@ -198,6 +205,27 @@ static floatsat_err_t Telemetry_SendDebugPacket(telemetry_handle_t *handle)
 
 }
 
+static floatsat_err_t Telemetry_SendCmd(telemetry_handle_t *handle)
+{
+    if(!handle){
+        return ERR_INVALID_ARG;
+    }
+
+    handle->tx_busy = true;
+    HAL_StatusTypeDef status = HAL_UART_Transmit_DMA(
+        handle->uart,
+        (uint8_t*)&handle->cmd_packet,
+        sizeof(telemetry_packet_cmd_t)
+    );
+
+    if(status != HAL_OK){
+        LOGE(LOG_TAG, "Error in CMD packet transmission. Statis: %d", status);
+    }
+    while(handle->tx_busy) {;}
+
+    return ERR_OK;
+}
+
 floatsat_err_t Telemetry_AddFast(telemetry_handle_t *handle, telemetry_packet_fast_t *packet)
 {
     if(!handle || !packet){
@@ -274,6 +302,27 @@ floatsat_err_t Telemetry_AddDebug(telemetry_handle_t *handle, telemetry_packet_d
     taskEXIT_CRITICAL();
 
 
+    return ERR_OK;
+}
+
+floatsat_err_t Telemetry_AddCommand(telemetry_handle_t *handle, telemetry_packet_cmd_t *packet)
+{
+    if(!handle || !packet){
+        return ERR_INVALID_ARG;
+    }
+
+    if(handle->packet_type_mask & PACKET_MASK_DEBUG){
+        LOGW(LOG_TAG, "Warning: Last CMD telemetry packet was not dispatched. "
+            "Last packet will be dropped and will continue with the current one");
+    }
+
+    taskENTER_CRITICAL();
+    {
+        handle->cmd_packet          = *packet;
+        handle->cmd_packet.type     = PACKET_TYPE_CMD;
+        handle->packet_type_mask    |= PACKET_MASK_CMD;
+    }
+    taskEXIT_CRITICAL();
     return ERR_OK;
 }
 

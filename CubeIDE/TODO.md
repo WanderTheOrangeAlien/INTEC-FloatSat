@@ -43,11 +43,14 @@ We need to perform the following activities
 - Implement Madwick filter                          DONE
 - Unit tests for Madwick filter
 
-- Implement simple PID control
+- Implement simple PID control                      DONE
 - Unit test PID control
 
-- Implement clibration
+- Implement clibration                              DONE
 - Unit test calibration
+
+- Make the debug packet ID be changed from a sys command instead of control, and have the Core handle it.
+- Add a debug packet for sending the RTC values
 
 ## DEMO 1: Simple PID control
 

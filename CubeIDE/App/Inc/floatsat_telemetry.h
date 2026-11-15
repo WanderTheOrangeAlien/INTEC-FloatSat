@@ -20,17 +20,12 @@
 
 #define TELEMETRY_RUNTIME_MS       5U
 
-#define PACKET_TYPE_FAST            0   // Only the orientation vector
-#define PACKET_TYPE_EXTENDED        1   // Orientation plus all sensors and subsystem health
-#define PACKET_TYPE_INFO_HEADER     2
-#define PACKET_TYPE_INFO_CHUNK      3
-#define PACKET_TYPE_DEBUG           4
-
 
 #define PACKET_MASK_FAST            (1U << 0U)
 #define PACKET_MASK_SLOW            (1U << 1U)
 #define PACKET_MASK_INFO            (1U << 2U)
 #define PACKET_MASK_DEBUG           (1U << 3U)
+#define PACKET_MASK_CMD             (1U << 4U)
 
 #define INFO_STATE_START            0U /* New info has been written. Construct the header and divide in chunks */
 #define INFO_STATE_TX               1U /* Transmitting. The info buffer is read and chunks are constructed and sent */
@@ -39,9 +34,6 @@
 #define INFO_CHUNK_SIZE             (offsetof(info_packet_chunk_t, data) + INFO_CHUNK_DATA_SIZE)
 #define INFO_CHUNK_TIME_MARGIN_US   100U        // Microseconds of margin to leave before task switch is performed
 #define INFO_CHUNK_RX_TIME_US       (680U)    // Estimated time needed for sending a chunk.   
-
-#define DEBUG_PACKET_ID_IMU         0x00
-#define DEBUG_PACKET_ID_CONTROL     0x01
 
 typedef struct telemetry_handle_t {
     UART_HandleTypeDef *uart;
@@ -54,6 +46,7 @@ typedef struct telemetry_handle_t {
     volatile uint8_t packet_type_mask;    // Bit mask indicating which types of packets must be sent.
     telemetry_packet_t current_packet;
     telemetry_packet_debug_t debug_packet;
+    telemetry_packet_cmd_t cmd_packet;
     volatile bool tx_busy;
 
     uint8_t info_state;                 // State for the info transmission state machine
@@ -78,6 +71,7 @@ floatsat_err_t Telemetry_Init(telemetry_handle_t *handle);
 floatsat_err_t Telemetry_AddFast(telemetry_handle_t *handle, telemetry_packet_fast_t *packet);
 floatsat_err_t Telemetry_AddSlow(telemetry_handle_t *handle, telemetry_packet_slow_t *packet);
 floatsat_err_t Telemetry_AddDebug(telemetry_handle_t *handle, telemetry_packet_debug_t *packet);
+floatsat_err_t Telemetry_AddCommand(telemetry_handle_t *handle, telemetry_packet_cmd_t *packet);
 
 floatsat_err_t Telemetry_GiveInfoBuffer(telemetry_handle_t *handle, uint8_t **ptr);
 floatsat_err_t Telemetry_TakeInfoBuffer(telemetry_handle_t *handle, uint8_t **out_ptr);

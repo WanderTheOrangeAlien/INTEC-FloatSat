@@ -18,9 +18,11 @@ class PacketType(IntEnum):
     DEBUG = 4
 
 
-class DebugId(IntEnum):
-    IMU = 0
-    CONTROL = 1
+class DebugId(IntEnum):        # DEBUG_PACKET_ID_* in Shared/fs_packets.h
+    NONE = 0
+    IMU = 1
+    CONTROL = 2
+    RTC = 3
 
 
 class Vec3(NamedTuple):
@@ -55,6 +57,14 @@ class ControlDebug:             # telemetry_packet_debug_t with debug_id = CONTR
     rw_speed: float
 
 
+@dataclass(frozen=True)
+class RtcDebug:                 # telemetry_packet_debug_t with debug_id = RTC
+    timestamp: int
+    hours: int
+    minutes: int
+    seconds: int
+
+
 class PacketError(Exception):
     """A binary frame that doesn't match any known packet layout."""
 
@@ -66,7 +76,8 @@ class PacketError(Exception):
 _FAST = struct.Struct("<BQ3ff")          # type, timestamp, orientation xyz, rw
 _DEBUG_HEADER = struct.Struct("<BB")     # type, debug_id
 _IMU = struct.Struct("<Q9f")              # IMU_data_t: timestamp, accel, gyro, mag
-_CONTROL = struct.Struct("<Q6f")         # control_data_t: timestamp, angle, angle_ref, w, w_ref, pwm_out
+_CONTROL = struct.Struct("<Q6f")         # control_data_t: timestamp, angle, angle_ref, w, w_ref, pwm_out, rw_speed
+_RTC = struct.Struct("<Q3B")             # floatsat_time_t: timestamp, hours, minutes, seconds
 
 
 def _parse_fast(data: bytes) -> FastTelemetry:
@@ -85,11 +96,16 @@ def _parse_control(data: bytes, offset: int) -> ControlDebug:
     return ControlDebug(*_CONTROL.unpack_from(data, offset))
 
 
+def _parse_rtc(data: bytes, offset: int) -> RtcDebug:
+    return RtcDebug(*_RTC.unpack_from(data, offset))
+
+
 # debug_id -> (payload size, parser). To add a debug type, add its id to
 # DebugId, a dataclass for it, a struct and a parser function, and an entry here.
 _DEBUG_PAYLOADS = {
     DebugId.IMU: (_IMU.size, _parse_imu),
     DebugId.CONTROL: (_CONTROL.size, _parse_control),
+    DebugId.RTC: (_RTC.size, _parse_rtc),
 }
 
 

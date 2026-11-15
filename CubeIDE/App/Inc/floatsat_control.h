@@ -19,8 +19,8 @@
 
 #define CONTROL_MAX_IMU_MISSES      5
 #define CONTROL_MAX_DT_S            ((float)CONTROL_MAX_IMU_MISSES * (float)CONTROL_LOOP_PERIOD_MS * 1e-3f)
-#define CONTROL_MAX_ANGULAR_VEL     (1.5f * 2.0f * (float)M_PI)     // In rad/s
-
+#define CONTROL_MAX_ANGULAR_VEL     (360.0f)     // In deg/s
+#define CONTROL_MAX_PWM             0.65f
 
 
 typedef struct control_handle_t {
@@ -30,6 +30,7 @@ typedef struct control_handle_t {
     telemetry_handle_t  *telemetry_handle;
     motor_handle_t      *motor;
     TaskHandle_t        task_handle;
+    const TaskHandle_t  *p_core_task;
 
     control_config_t    *g_control_config;      // Configuration struct shared with the supervisor
 

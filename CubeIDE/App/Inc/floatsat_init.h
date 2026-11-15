@@ -13,7 +13,7 @@
 #include "floatsat_control.h"
 #include "floatsat_core.h"
 #include "floatsat_motor_controller.h"
-
+#include "floatsat_time.h"
 // Structure to enclose all peripheral handles. This is required to cleanly
 // pass all the handles from main.c to floatsat_init.c
 typedef struct floatsat_periph_t {
@@ -23,6 +23,7 @@ typedef struct floatsat_periph_t {
     TIM_HandleTypeDef       *encoder_timer;
     TIM_HandleTypeDef       *encoder_sampling_timer;
     TIM_HandleTypeDef       *microsec_timer;
+    RTC_HandleTypeDef       *rtc;
 
     // Functions and other info
 

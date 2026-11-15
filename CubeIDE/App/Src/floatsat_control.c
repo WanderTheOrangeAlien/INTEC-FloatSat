@@ -36,8 +36,8 @@ floatsat_err_t Control_Init(control_handle_t *handle)
             LOG_TAG, "Could not acquire data bus writer");
     handle->g_control_config->debug_id = DEBUG_PACKET_ID_CONTROL;
     handle->g_control_config->params = (control_cascade_params_t){
-        .k_theta    = -0.5f ,
-        .k_p        = -0.01230458266f * 5.0f,
+        .k_theta    = 0.5f ,
+        .k_p        = -0.01230458266f,
         .k_i        = -0.00499678814f
     };
     handle->g_control_config->control_active = false;
@@ -103,12 +103,17 @@ void Task_ControlFn(void *args)
         Telemetry_AddFast(handle->telemetry_handle, &packet);
 
 
-        if(++dbg_count >= 1){
+        if(++dbg_count >= 4){
             Control_SendDebug(handle, &imu_data, &debug_control_data);
             dbg_count = 0U;
         }
 
-        xTaskNotify(handle->telemetry_handle->task_handle, 0U, eNoAction);
+        xTaskNotify(handle->telemetry_handle->task_handle, 0U, eIncrement);
+
+        if(*handle->p_core_task){
+            xTaskNotify(*handle->p_core_task, 0U, eIncrement);
+        }
+
         vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(CONTROL_LOOP_PERIOD_MS));
 
     }
@@ -139,21 +144,16 @@ static floatsat_err_t Control_EstimateOrientation(control_handle_t *handle, IMU_
     ret = IMU_ReadData(handle->imu, imu_data); // Take IMU measurements
 
     if(ret == ERR_OK){
-        imu_data->gyro = Vec_SMult(&imu_data->gyro, MDPS_TO_RADS); // Convert gyro units from mDPS to rad/s
+        imu_data->gyro  = Vec_SMult(&imu_data->gyro, MDPS_TO_RADS); // Convert gyro units from mDPS to rad/s
         imu_data->accel = Vec_SMult(&imu_data->accel, CM_TO_M);
-        imu_data->mag = Vec_Normalize(&imu_data->mag);
-
-
-        // DEBUG: DELETE THIS
-        // imu_data->accel = (Vec3_t){0,0,9.81f};
-        // imu_data->mag = (Vec3_t){0.98f, 0.01f, 0};
-        // imu_data->gyro = (Vec3_t){0,0,0};
+        imu_data->mag   = Vec_SMult(&imu_data->mag, 1e-3f); // mGaus to Gaus 
         
         
         now_us = Util_GetTimeUs();
         dt = (float)(now_us - last_update_us) * 1.0e-6f;
         
         if(dt > CONTROL_MAX_DT_S){
+            LOGW(LOG_TAG, "Madgwick orientation reset");
             Madgwick_ResetOrientation(handle->madgwick); // Delta t too long, previous estimate is invalid, reset the filter
             dt = (float)CONTROL_LOOP_PERIOD_MS * 1e-3f;
         }
@@ -194,11 +194,12 @@ static floatsat_err_t Control_ComputeOutput(
     }
 
     float theta, e_theta, u_theta;
-    float w_ref, e_w;
+    float w, w_ref, e_w;
     float u_P, u, u_sat;
     static float u_I = 0.0f, u_I_prev = 0.0f;
     control_cascade_params_t *params = &handle->g_control_config->params;
 
+    w = imu_data->gyro.z * (180.0f / (float)M_PI );
 
     // Azimuth angle (Relative to X Axis)
     theta   = atan2f(handle->current_orientation.y, handle->current_orientation.x) * (180.0f / (float)M_PI );
@@ -207,13 +208,13 @@ static floatsat_err_t Control_ComputeOutput(
     u_theta = params->k_theta * e_theta;
 
     w_ref   = saturate_symmetric(u_theta, CONTROL_MAX_ANGULAR_VEL);
-    e_w     = w_ref - imu_data->gyro.z;
+    e_w     = w_ref - w;
 
     u_P     = params->k_p * e_w;
     u_I     = u_I_prev + params->k_i * ((float)CONTROL_LOOP_PERIOD_MS * 1e-3f) * e_w;
 
     u       = u_P + u_I;
-    u_sat   = saturate_symmetric(u, 1.0f); 
+    u_sat   = saturate_symmetric(u, CONTROL_MAX_PWM); 
     
     u_I_prev = u_I;
     *out    = u_sat;
@@ -223,7 +224,7 @@ static floatsat_err_t Control_ComputeOutput(
             .angle      = theta,
             .angle_ref  = handle->g_control_config->target_angle,
 
-            .w          = imu_data->gyro.z,
+            .w          = w,
             .w_ref      = w_ref,
 
             .pwm_out    = u_sat

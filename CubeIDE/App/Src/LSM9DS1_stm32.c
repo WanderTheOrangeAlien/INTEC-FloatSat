@@ -370,6 +370,12 @@ floatsat_err_t IMU_ReadData(IMU_handle_t *handle, IMU_data_t *data)
     data->gyro.y -= handle->calibration_data.gyro_offset.y;
     data->gyro.z -= handle->calibration_data.gyro_offset.z;
 
+    // Mag offset and scale
+    data->mag.x = (data->mag.x - handle->calibration_data.mag_offset.x) * handle->calibration_data.mag_scale.x;
+    data->mag.y = (data->mag.y - handle->calibration_data.mag_offset.y) * handle->calibration_data.mag_scale.y;
+    data->mag.z = (data->mag.z - handle->calibration_data.mag_offset.z) * handle->calibration_data.mag_scale.z;
+
+
     return ERR_OK;
 err:
     memset(data,0,sizeof(IMU_data_t));
@@ -421,7 +427,7 @@ static floatsat_err_t IMU_ConvertRaw(IMU_handle_t *handle, IMU_data_raw_t *data_
         return ERR_INVALID_STATE;
     }
     data->mag = (Vec3_t) {
-        .x = data_raw->mag.x * MAG_CONV_FACTORS[conv_factor_idx],
+        .x = -data_raw->mag.x * MAG_CONV_FACTORS[conv_factor_idx],
         .y = data_raw->mag.y * MAG_CONV_FACTORS[conv_factor_idx],
         .z = data_raw->mag.z * MAG_CONV_FACTORS[conv_factor_idx]
     };

@@ -3,6 +3,8 @@
 #include "driver/gpio.h"
 #include "uart_module.h"
 
+#include "floatsat_types.h"
+
 static void UART_Task(void *params);
 
 static void handle_floatsat_telemetry(uart_module_handle_t *handle, size_t rx_len);
@@ -20,6 +22,7 @@ static const size_t packet_lengths[] = {
     [PACKET_TYPE_INFO_HEADER]       13U,
     [PACKET_TYPE_INFO_CHUNK]        INFO_CHUNK_DATA_SIZE + 2U,
     [PACKET_TYPE_DEBUG]             46U,
+    [PACKET_TYPE_CMD]               3U
 };
 
 
@@ -74,6 +77,28 @@ esp_err_t UART_Init(uart_module_handle_t *handle)
     return ESP_OK;
 }
 
+esp_err_t UART_SendFloatsatCmd(uart_module_handle_t *handle, const char *command)
+{
+    if(!handle || !command){
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint8_t buffer[255] = {0};
+
+    floatsat_msg_header_t header = {
+        .sync = CMD_MSG_SYNC,
+        .len = strlen(command),
+        .crc = 0U
+    };
+
+    memcpy(buffer, &header, sizeof(floatsat_msg_header_t));
+    memcpy(buffer + sizeof(floatsat_msg_header_t), command, header.len);
+    uart_write_bytes(handle->config.uart_port_num, buffer, sizeof(floatsat_msg_header_t) + header.len);
+
+    return ESP_OK;
+
+}
+
 static void UART_Task(void *params)
 {
     uart_module_handle_t *handle = (uart_module_handle_t*)params;
@@ -125,8 +150,8 @@ static void handle_floatsat_telemetry(uart_module_handle_t *handle, size_t rx_le
 
             // Validate packet type
             if(handle->current_packet_type >= sizeof(packet_lengths) / sizeof(packet_lengths[0])){
-                ESP_LOGE(TAG,"Invalid packet type: %u. rx_len = %lu",
-                     handle->current_packet_type, rx_len);
+                // ESP_LOGE(TAG,"Invalid packet type: %u. rx_len = %lu",
+                //      handle->current_packet_type, rx_len);
                 memset(handle->rx_buffer,0,handle->config.rx_buff_size);
                 // uart_flush_input(handle->config.uart_port_num);
                 // vTaskDelay(1);
@@ -292,6 +317,13 @@ static void on_packet_rx_complete(uart_module_handle_t *handle)
             handle->config.on_rx_complete(handle->rx_buffer, handle->rx_idx, PACKET_TYPE_DEBUG);
         }
         break;
+    }
+
+    case PACKET_TYPE_CMD: {
+        if(handle->config.on_rx_complete){
+            handle->config.on_rx_complete(handle->rx_buffer, handle->rx_idx, PACKET_TYPE_CMD);
+        }
+
     }
 
     default:

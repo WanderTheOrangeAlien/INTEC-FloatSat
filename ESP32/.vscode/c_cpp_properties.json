@@ -5,7 +5,8 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "${default}",
-                "${IDF_PATH}/**"
+                "${IDF_PATH}/**",
+                "${workspaceFolder}/../Shared"
             ],
             "cStandard": "c11",
             "cppStandard": "c++17",

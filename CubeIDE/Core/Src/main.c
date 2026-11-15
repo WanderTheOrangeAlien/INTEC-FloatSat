@@ -33,6 +33,7 @@
 #include "cmsis_os.h"
 #include "dma.h"
 #include "i2c.h"
+#include "rtc.h"
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
@@ -121,6 +122,7 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM12_Init();
   MX_USART2_UART_Init();
+  MX_RTC_Init();
   /* USER CODE BEGIN 2 */
 
   // From Percepio View 
@@ -133,6 +135,7 @@ int main(void)
     .encoder_timer            =   &MOTOR_ENCODER_TIM,
     .encoder_sampling_timer   =   &ENCODER_SAMPLER_TIM,
     .microsec_timer           =   &MICROSEC_TIMER,
+    .rtc                      =   &RTC_HANDLE,
 
     .i2c_init_fn              =   MX_I2C1_Init,
     .i2c_sda_pins             =   {I2C1_SDA_Pin,0,0},
@@ -201,8 +204,9 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_BYPASS;
+  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = 8;
@@ -250,8 +254,6 @@ void SystemClock_Config(void)
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
-  static uint64_t prev_us = 0UL, us = 0UL;
-  static uint32_t count = 0U, delta_sum = 0U;
   /* USER CODE END Callback 0 */
   if (htim->Instance == TIM6)
   {

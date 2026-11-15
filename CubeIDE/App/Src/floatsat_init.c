@@ -18,6 +18,9 @@ static const char *LOG_TAG = "INIT";
 
 /* ============================= Module handles ============================= */
 
+/* -------------- Time -------------- */
+static rtc_handle_t rtc_handle =  {0};
+
 /* -------------- IMU -------------- */
 static const LSM9DS1_params_t IMU_params = {
     .gyro_odr           =   GYRO_ODR_119HZ,     
@@ -68,18 +71,19 @@ static motor_handle_t motor_handle = {0};
 
 
 /* -------------- Core -------------- */
-static photo_info_t photo_info_arr[CORE_MAX_PHOTO_INSTRUCTIONS] = {0}; 
+static photo_info_t photo_arr[CORE_MAX_PHOTO_INSTRUCTIONS] = {0}; 
 static control_config_t g_control_config = {0};
 static data_bus_reader_t core_data_bus_reader = {0};
 
 static floatsat_core_t core_handle = {
-    .photo_info_arr     = photo_info_arr,
+    .photo_arr     = photo_arr,
     .telementry_handle  = &telemetry_handle,
     .g_control_config   = &g_control_config,
 
     .motor_handle       = &motor_handle,
     .imu_handle         = &IMU_handle,
     .data_bus_reader    = &core_data_bus_reader,
+    .rtc                = &rtc_handle
 };
 
 
@@ -90,6 +94,7 @@ static control_handle_t control_handle = {
     .telemetry_handle   = &telemetry_handle,
     .motor              = &motor_handle,
     .g_control_config   = &g_control_config,
+    .p_core_task        = &core_handle.task_handle
 };
 
 
@@ -121,6 +126,8 @@ floatsat_err_t FloatSat_Init(const floatsat_periph_t *periph,
     }
     
     // Assign the peripheral and user config to each corresponding handle and then call each init function
+
+
     /* ------------------------------ IMU ------------------------------ */
     IMU_handle.i2c_handle           = periph->imu_i2c;
     IMU_handle.i2c_periph_init_fn   = periph->i2c_init_fn;
@@ -163,6 +170,12 @@ floatsat_err_t FloatSat_Init(const floatsat_periph_t *periph,
     /* ----------------------------- Telemetry ----------------------------- */
     GOTO_ON_ERR_LOG(Core_Init(&core_handle), err, ret, 
         LOG_TAG, "Error initializing Supervisor (aka Core). Error code: 0x%04x", ret);
+
+    /* ------------------------------ RTC ------------------------------ */
+    rtc_handle.rtc = periph->rtc;
+    GOTO_ON_ERR_LOG(RTC_Init(&rtc_handle),err, ret,
+        LOG_TAG,"Error initializing RTC");
+
 
     /* ----------------------------- Utility ----------------------------- */
     GOTO_ON_ERR_LOG(Util_Init(periph->microsec_timer), err, ret, 

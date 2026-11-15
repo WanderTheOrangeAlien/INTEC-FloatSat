@@ -59,6 +59,7 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define MAIN_UART huart2
 #define ENCODER_SAMPLE_PERIOD_MS 5
 #define MOTOR_PWM_TIM htim1
 #define IMU_I2C hi2c1
@@ -66,7 +67,7 @@ void Error_Handler(void);
 #define ENCODER_SAMPLER_TIM htim12
 #define MOTOR_PWM_PERIOD_US 1000
 #define MICROSEC_TIMER htim2
-#define MAIN_UART huart2
+#define RTC_HANDLE hrtc
 #define CS_I2C_SPI_Pin GPIO_PIN_3
 #define CS_I2C_SPI_GPIO_Port GPIOE
 #define PH0_OSC_IN_Pin GPIO_PIN_0

@@ -211,6 +211,9 @@ typedef enum LSM9DS1_mag_op_mode_t {
 
 typedef struct IMU_calibration_data_t {
     Vec3_t gyro_offset;
+    Vec3_t mag_scale;
+    Vec3_t mag_offset;
+    
 }IMU_calibration_data_t;
 
 typedef struct LSM9DS1_params_t {

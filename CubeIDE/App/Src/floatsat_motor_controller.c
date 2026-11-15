@@ -64,8 +64,6 @@ floatsat_err_t Motor_SetDutyCycle(motor_handle_t *handle, float duty)
     if(!handle->pwm_started){
         Motor_Start(handle);
     }
-
-
     return ERR_OK;
 }
 
