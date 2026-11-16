@@ -31,7 +31,7 @@ floatsat_err_t Core_Init(floatsat_core_t *handle)
 
     if(!handle->photo_arr || !handle->telementry_handle
         || !handle->g_control_config || !handle->motor_handle || !handle->imu_handle
-        || !handle->rtc){
+        || !handle->rtc || !handle->light_sensor){
         return ERR_INVALID_ARG;
     }
     floatsat_err_t ret = ERR_OK;

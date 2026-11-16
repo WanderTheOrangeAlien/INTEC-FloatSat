@@ -13,6 +13,7 @@
 #include "floatsat_motor_controller.h"
 #include "floatsat_time.h"
 #include "fs_commands.h"
+#include "floatsat_light_sensor.h"
 
 /* @action_flags */
 #define CORE_ACTION_UPDATE_DEBUG            (1U << 0)
@@ -59,6 +60,7 @@ typedef struct floatsat_core_t {
     /* Handles */
     motor_handle_t      *motor_handle;
     IMU_handle_t        *imu_handle;
+    light_sensor_handle_t *light_sensor;
 
     data_bus_reader_t   *data_bus_reader;
 

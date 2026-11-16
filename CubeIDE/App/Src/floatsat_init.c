@@ -70,20 +70,55 @@ static madgwick_filter_t madgwick_filter = {0};
 static motor_handle_t motor_handle = {0};
 
 
+/* -------------- Light sensors and Multiplexer -------------- */
+static VEML7700_handle_t veml7700_arr[FLOATSAT_LIGHT_SENSOR_AMOUNT] = {
+
+    {
+        .i2c            = {0},
+        .gain           = VEML7700_ALS_GAIN_X1_8,
+        .int_time       = VEML7700_ALS_IT_100MS,
+        .persistence    = VEML7700_ALS_PERS_1
+    },
+    {
+        .i2c            = {0},
+        .gain           = VEML7700_ALS_GAIN_X1_8,
+        .int_time       = VEML7700_ALS_IT_100MS,
+        .persistence    = VEML7700_ALS_PERS_1
+    },
+    {
+        .i2c            = {0},
+        .gain           = VEML7700_ALS_GAIN_X1_8,
+        .int_time       = VEML7700_ALS_IT_100MS,
+        .persistence    = VEML7700_ALS_PERS_1
+    },
+};
+
+static TCA9548_handle_t multiplexer = {
+    .dev_address = FLOATSAT_MULTIPLEXER_ADDR,
+    .current_channel = 0U
+};
+
+static light_sensor_handle_t light_sensor = {
+    .multiplexer    = &multiplexer,
+    .sensors        = {&veml7700_arr[0], &veml7700_arr[3], &veml7700_arr[2]}
+};
+
+
 /* -------------- Core -------------- */
 static photo_info_t photo_arr[CORE_MAX_PHOTO_INSTRUCTIONS] = {0}; 
 static control_config_t g_control_config = {0};
 static data_bus_reader_t core_data_bus_reader = {0};
 
 static floatsat_core_t core_handle = {
-    .photo_arr     = photo_arr,
+    .photo_arr          = photo_arr,
     .telementry_handle  = &telemetry_handle,
     .g_control_config   = &g_control_config,
 
     .motor_handle       = &motor_handle,
     .imu_handle         = &IMU_handle,
     .data_bus_reader    = &core_data_bus_reader,
-    .rtc                = &rtc_handle
+    .rtc                = &rtc_handle,
+    .light_sensor       = &light_sensor,
 };
 
 
@@ -167,7 +202,17 @@ floatsat_err_t FloatSat_Init(const floatsat_periph_t *periph,
     GOTO_ON_ERR_LOG(Telemetry_Init(&telemetry_handle), err, ret, 
         LOG_TAG, "Error initializing telemetry. Error code: 0x%04x", ret);
 
-    /* ----------------------------- Telemetry ----------------------------- */
+    /* ----------------------------- Light Sensor----------------------------- */
+    for (size_t i = 0; i < FLOATSAT_LIGHT_SENSOR_AMOUNT; i++)
+    {
+        veml7700_arr[i].i2c = periph->light_sensor_i2c;
+    }
+    multiplexer.i2c = periph->light_sensor_i2c;
+
+    GOTO_ON_ERR_LOG(LightSensor_Init(&light_sensor), err, ret,
+        LOG_TAG, "Error initializing light sensors. Error code: 0x%04x", ret);
+    
+    /* ----------------------------- Core ----------------------------- */
     GOTO_ON_ERR_LOG(Core_Init(&core_handle), err, ret, 
         LOG_TAG, "Error initializing Supervisor (aka Core). Error code: 0x%04x", ret);
 

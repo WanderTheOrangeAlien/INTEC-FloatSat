@@ -121,6 +121,20 @@ int Util_GPIO2Index(GPIO_TypeDef *gpio)
     return -1;
 }
 
+void Util_I2C_Reset(I2C_TypeDef *i2c)
+{
+    if(i2c == I2C1){
+        __HAL_RCC_I2C1_FORCE_RESET();
+        __HAL_RCC_I2C1_RELEASE_RESET();
+    }else if(i2c == I2C2){
+        __HAL_RCC_I2C2_FORCE_RESET();
+        __HAL_RCC_I2C2_RELEASE_RESET();
+    }else if(i2c == I2C3){
+        __HAL_RCC_I2C3_FORCE_RESET();
+        __HAL_RCC_I2C3_RELEASE_RESET();
+    }
+}
+
 floatsat_err_t Util_EnableGPIOClock(GPIO_TypeDef *gpio)
 {
     if(!gpio){

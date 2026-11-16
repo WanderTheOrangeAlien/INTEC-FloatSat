@@ -14,10 +14,17 @@
 #include "floatsat_core.h"
 #include "floatsat_motor_controller.h"
 #include "floatsat_time.h"
+#include "floatsat_light_sensor.h"
+#include "floatsat_i2c.h"
+
+#define FLOATSAT_MULTIPLEXER_ADDR    0x70
+
+
 // Structure to enclose all peripheral handles. This is required to cleanly
 // pass all the handles from main.c to floatsat_init.c
 typedef struct floatsat_periph_t {
     I2C_HandleTypeDef       *imu_i2c;
+    i2c_info_t              light_sensor_i2c;
     UART_HandleTypeDef      *main_uart;
     TIM_HandleTypeDef       *motor_pwm_timer;
     TIM_HandleTypeDef       *encoder_timer;
@@ -28,8 +35,8 @@ typedef struct floatsat_periph_t {
     // Functions and other info
 
     void                    (*i2c_init_fn)(void);
-    uint16_t                 i2c_sda_pins[N_I2C]; // One pin per bit
-    uint16_t                 i2c_scl_pins[N_I2C]; // One pin per bit
+    uint16_t                 i2c_sda_pins[N_I2C]; // Pin Mask One pin per bit
+    uint16_t                 i2c_scl_pins[N_I2C]; // Pin Mask One pin per bit
     GPIO_TypeDef            *i2c_gpio;
 
 }floatsat_periph_t;

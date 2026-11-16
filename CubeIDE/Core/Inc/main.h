@@ -61,13 +61,14 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define MAIN_UART huart2
 #define ENCODER_SAMPLE_PERIOD_MS 5
+#define RTC_HANDLE hrtc
 #define MOTOR_PWM_TIM htim1
 #define IMU_I2C hi2c1
 #define MOTOR_ENCODER_TIM htim3
 #define ENCODER_SAMPLER_TIM htim12
 #define MOTOR_PWM_PERIOD_US 1000
 #define MICROSEC_TIMER htim2
-#define RTC_HANDLE hrtc
+#define LIGHT_SENSOR_I2C hi2c2
 #define CS_I2C_SPI_Pin GPIO_PIN_3
 #define CS_I2C_SPI_GPIO_Port GPIOE
 #define PH0_OSC_IN_Pin GPIO_PIN_0
@@ -80,6 +81,10 @@ void Error_Handler(void);
 #define B1_GPIO_Port GPIOA
 #define BOOT1_Pin GPIO_PIN_2
 #define BOOT1_GPIO_Port GPIOB
+#define I2C2_SCL_Pin GPIO_PIN_10
+#define I2C2_SCL_GPIO_Port GPIOB
+#define I2C2_SDA_Pin GPIO_PIN_11
+#define I2C2_SDA_GPIO_Port GPIOB
 #define LD4_Pin GPIO_PIN_12
 #define LD4_GPIO_Port GPIOD
 #define LD3_Pin GPIO_PIN_13

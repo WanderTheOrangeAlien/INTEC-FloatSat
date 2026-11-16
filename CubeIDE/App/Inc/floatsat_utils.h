@@ -17,6 +17,8 @@ int Util_TIM2Index(TIM_TypeDef *tim_base);
 int Util_I2C2Index(I2C_TypeDef *i2c);
 int Util_GPIO2Index(GPIO_TypeDef *gpio);
 
+void Util_I2C_Reset(I2C_TypeDef *i2c);
+
 floatsat_err_t Util_EnableGPIOClock(GPIO_TypeDef *gpio);
 
 void Util_Stopwatch_Start(uint64_t *time_us);

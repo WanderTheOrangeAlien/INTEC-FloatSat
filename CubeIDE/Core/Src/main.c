@@ -123,6 +123,7 @@ int main(void)
   MX_TIM12_Init();
   MX_USART2_UART_Init();
   MX_RTC_Init();
+  MX_I2C2_Init();
   /* USER CODE BEGIN 2 */
 
   // From Percepio View 
@@ -130,6 +131,15 @@ int main(void)
 
   floatsat_periph_t peripherals = {
     .imu_i2c                  =   &IMU_I2C,
+    .light_sensor_i2c         =   
+        {
+          .periph       = &LIGHT_SENSOR_I2C,
+          .gpio_port    = I2C2_SDA_GPIO_Port,
+          .scl_pin_mask = I2C2_SCL_Pin,
+          .sda_pin_mask = I2C2_SDA_Pin,
+          .init_fn      = MX_I2C2_Init
+        },
+
     .main_uart                =   &MAIN_UART,
     .motor_pwm_timer          =   &MOTOR_PWM_TIM,
     .encoder_timer            =   &MOTOR_ENCODER_TIM,
@@ -138,8 +148,8 @@ int main(void)
     .rtc                      =   &RTC_HANDLE,
 
     .i2c_init_fn              =   MX_I2C1_Init,
-    .i2c_sda_pins             =   {I2C1_SDA_Pin,0,0},
-    .i2c_scl_pins             =   {I2C1_SCL_Pin,0,0},
+    .i2c_sda_pins             =   {I2C1_SDA_Pin,I2C2_SDA_Pin,0},
+    .i2c_scl_pins             =   {I2C1_SCL_Pin,I2C2_SCL_Pin,0},
     .i2c_gpio                 =   I2C1_SDA_GPIO_Port
   };
 
@@ -235,12 +245,6 @@ void SystemClock_Config(void)
 
 /* USER CODE BEGIN 4 */
 
-/*
- * Espacio reservado para funciones adicionales del usuario.
- *
- * El contenido será conservado por STM32CubeMX.
- */
-
 /* USER CODE END 4 */
 
 /**
@@ -289,28 +293,11 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
 
-  /*
-   * Deshabilitar globalmente las interrupciones.
-   *
-   * Después de esta instrucción:
-   *
-   *   - FreeRTOS no puede realizar cambios de tarea.
-   *   - Los temporizadores no ejecutan callbacks.
-   *   - La comunicación por interrupciones queda detenida.
-   */
   __disable_irq();
 
-
-  /*
-   * Permanecer bloqueado indefinidamente.
-   */
   while (1)
   {
-    /*
-     * Aquí podrían agregarse señales de diagnóstico, aunque con las
-     * interrupciones deshabilitadas solo deberían usarse operaciones
-     * directas y no bloqueantes.
-     */
+
   }
 
   /* USER CODE END Error_Handler_Debug */
