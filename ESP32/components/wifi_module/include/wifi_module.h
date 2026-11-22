@@ -18,7 +18,7 @@
 #define WIFI_BIT_CONNECTED      (1 << 0)
 #define WIFI_BIT_FAIL           (1 << 1)
 
-#define WIFI_MAX_RETRY_NUM      10
+#define WIFI_MAX_RETRY_NUM      20
 
 typedef struct wifi_module_config_t {
     const char *ssid;

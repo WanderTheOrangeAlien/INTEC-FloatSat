@@ -56,9 +56,10 @@
 #define CMD_SYSCTL_FLAG_RESET       (1U << 0)
 #define CMD_SYSCTL_FLAG_DBG_ID      (1U << 1)
 #define CMD_SYSCTL_FLAG_INVOKE_CB   (1U << 2)
+#define CMD_SYSCTL_FLAG_SET_RTC     (1U << 3)
 
 #define CMD_SYSCTL_MAX_CB_NAME_LEN      32U
-
+#define CMD_SYSCTL_MAX_RTC_DATETIME_LEN 18U // "yy/mm/dd hh:mm:ss"
 
 
 
@@ -104,6 +105,11 @@ typedef struct cmd_sysctl_args_t {
     uint32_t action_flags;
     uint8_t debug_id;
     char callback_name[CMD_SYSCTL_MAX_CB_NAME_LEN + 1U];
+    // char rtc_datetime[CMD_SYSCTL_MAX_RTC_DATETIME_LEN];
+
+    floatsat_time_t rtc_time;
+    floatsat_date_t rtc_date;
+
 }cmd_sysctl_args_t;
 
 typedef struct cmd_mission_args_t {

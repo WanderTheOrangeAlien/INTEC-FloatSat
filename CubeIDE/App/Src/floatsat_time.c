@@ -1,4 +1,5 @@
 #include "floatsat_time.h"
+#include <string.h>
 
 static uint8_t rtc_weekday(uint16_t y, uint8_t m, uint8_t d);
 static inline uint32_t Time_TimeToSeconds(const floatsat_time_t *t);
@@ -166,6 +167,51 @@ floatsat_err_t Time_ParseString(const char *buffer, floatsat_time_t *time)
     time->hours     = (uint8_t)h;
     time->minutes   = (uint8_t)m;
     time->seconds   = (uint8_t)s;
+
+    return ERR_OK;
+}
+
+floatsat_err_t Time_ParseDateString(const char *buffer, floatsat_date_t *date)
+{
+    if(!buffer || !date){
+        return ERR_INVALID_ARG;
+    }
+    memset(date, 0, sizeof(floatsat_date_t));
+    
+    unsigned int y, m, d;
+    int ret = sscanf(buffer, "%2u/%2u/%2u",&m, &d, &y);
+    if(ret < 3){
+        return ERR_INVALID_ARG;
+    }
+
+    if(m > 12U || d > 31U || d == 0U || y < 26U){
+        return ERR_INVALID_ARG;
+    }
+
+    date->year  = (uint8_t)y;
+    date->month = (uint8_t)m;
+    date->day   = (uint8_t)d;
+
+    return ERR_OK;
+}
+
+floatsat_err_t Time_ParseTimeDateString(const char *buffer, floatsat_time_t *time, floatsat_date_t *date)
+{
+    if(!buffer || !time || !date){
+        return ERR_INVALID_ARG;
+    }
+
+    // Expected format: MM/dd/yy hh:mm:ss
+
+    // Find the space
+    char date_str[16] = {0}; 
+    const char *p = strchr(buffer, ' ');
+    if(!p){
+        return ERR_INVALID_ARG;
+    }
+
+    memcpy(date_str, buffer, (size_t)(p - buffer));
+
 
     return ERR_OK;
 }

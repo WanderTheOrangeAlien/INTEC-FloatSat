@@ -11,6 +11,7 @@ static floatsat_err_t Control_EstimateOrientation(control_handle_t *handle, IMU_
 static floatsat_err_t Control_SendDebug(control_handle_t *handle, IMU_data_t *imu_data, control_data_t *control_data);
 
 
+
 static const Vec3_t forward_vec = {1,0,0}; // Here we assume that the north corresponds to the X axis. 
                                            // TODO: Check the IMU orientation to confirm this 
 
@@ -36,11 +37,20 @@ floatsat_err_t Control_Init(control_handle_t *handle)
             LOG_TAG, "Could not acquire data bus writer");
     handle->g_control_config->debug_id = DEBUG_PACKET_ID_CONTROL;
     handle->g_control_config->params = (control_cascade_params_t){
-        .k_theta    = 0.5f ,
+        .k_theta    = -0.5f ,
         .k_p        = -0.01230458266f,
         .k_i        = -0.00499678814f
     };
     handle->g_control_config->control_active = false;
+
+#ifdef FUSION_H
+    UNUSED(forward_vec);
+    FusionAhrsInitialise(handle->fusion_ahrs);
+    FusionAhrsSetSettings(handle->fusion_ahrs, handle->fusion_ahrs_settings);
+    FusionBiasInitialise(handle->fusion_bias);
+    FusionBiasSetSettings(handle->fusion_bias, handle->fusion_bias_settings);
+
+#endif
 
     LOGI(LOG_TAG,"Initialization succesful");
     return ERR_OK;
@@ -103,7 +113,7 @@ void Task_ControlFn(void *args)
         Telemetry_AddFast(handle->telemetry_handle, &packet);
 
 
-        if(++dbg_count >= 4){
+        if(++dbg_count >= 4U){
             Control_SendDebug(handle, &imu_data, &debug_control_data);
             dbg_count = 0U;
         }
@@ -172,9 +182,55 @@ static floatsat_err_t Control_EstimateOrientation(control_handle_t *handle, IMU_
         return ERR_IMU_NOT_CALIBRATED;
     }
 
+
     if(imu_misses == 0U){
+#ifndef FUSION_H
         Madgwick_Update(handle->madgwick, imu_data, dt);
         handle->current_orientation = Vec3_Rotate(&forward_vec, &handle->madgwick->SEq);
+#else
+        // In g
+        FusionVector acc = {
+            .array = {
+                imu_data->accel.x / G_TO_MS2, 
+                imu_data->accel.y / G_TO_MS2, 
+                imu_data->accel.z / G_TO_MS2}
+        };
+
+        // In degree/s
+        FusionVector gyro = {
+            .array = {
+                imu_data->gyro.x * RADS_TO_DEG, 
+                imu_data->gyro.y * RADS_TO_DEG, 
+                imu_data->gyro.z * RADS_TO_DEG} 
+        };
+
+        FusionVector mag = {
+            .array = {imu_data->mag.x, imu_data->mag.y, imu_data->mag.z} 
+        };
+
+        // FusionBiasUpdate(handle->fusion_bias, gyro);
+
+        FusionAhrsSetSamplePeriod(handle->fusion_ahrs, dt);
+        FusionAhrsUpdate(handle->fusion_ahrs, gyro, acc, mag);
+        
+        // Convert from Quaternion to vector. For how we just asume that north is (1,0,0)
+        FusionQuaternion q = FusionAhrsGetQuaternion(handle->fusion_ahrs);
+        FusionQuaternion q_conj = {
+            .array = {q.array[0], -q.array[1], -q.array[2], -q.array[3]}
+        };
+
+        FusionQuaternion temp = FusionQuaternionVectorProduct(q, (FusionVector){.array = { 1.0, 0.0f, 0.0f}});
+        temp = FusionQuaternionProduct(temp, q_conj);
+
+        handle->current_orientation = (Vec3_t) {
+            .x = temp.array[1],
+            .y = temp.array[2],
+            .z = temp.array[3],
+        };
+
+#endif
+
+    
     }
     return ERR_OK;
 

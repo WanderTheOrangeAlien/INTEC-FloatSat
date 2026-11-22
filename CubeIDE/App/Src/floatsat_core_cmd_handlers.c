@@ -1,4 +1,7 @@
 #include "floatsat_core_priv.h"
+#include <float.h>
+
+static floatsat_err_t Core_IMUCalibrate_Mag(floatsat_core_t *handle);
 
 static uint32_t get_sys_cb_flag(const char *name);
 
@@ -6,6 +9,7 @@ static const char LOG_TAG[] = "CORE";
 
 static const sys_cb_entry_t sys_cb_table[]  = {
     {CORE_ACTION_PHOTO_CLEANUP, "on_photo_finish"},
+    {CORE_ACTION_BRIDGE_ACTIVE, "on_bridge_active"},
 };
 
 floatsat_err_t Core_SetControl(floatsat_core_t *handle, floatsat_cmd_t *cmd)
@@ -271,6 +275,7 @@ floatsat_err_t Core_IMUCalibrate(floatsat_core_t *handle, uint32_t flags)
 
     if(flags & CMD_IMU_CAL_FLAG_MAG){
         LOGI(LOG_TAG, "Starting magnetometer calibration");
+        GOTO_ON_ERR(Core_IMUCalibrate_Mag(handle), err, ret);
     }
 
     if(flags == (CMD_IMU_CAL_FLAG_ACCEL | CMD_IMU_CAL_FLAG_GYRO | CMD_IMU_CAL_FLAG_MAG)){
@@ -323,6 +328,20 @@ floatsat_err_t Core_IMUCalibrate_Gyro(floatsat_core_t *handle)
     taskENTER_CRITICAL();
     handle->imu_handle->calibration_data.gyro_offset = gyro_bias_avg;
     taskEXIT_CRITICAL();
+
+    return ERR_OK;
+}
+
+static floatsat_err_t Core_IMUCalibrate_Mag(floatsat_core_t *handle)
+{
+    if(!handle){
+        return ERR_INVALID_ARG;
+    }
+
+    // Motor_SetDutyCycle(handle->motor_handle, 0.3f);
+
+
+    
 
     return ERR_OK;
 }

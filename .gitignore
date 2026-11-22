@@ -67,3 +67,5 @@ Debug/
 
 # Other folders
 results/
+sdkconfig
+sdkconfig.old

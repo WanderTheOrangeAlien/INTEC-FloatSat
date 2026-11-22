@@ -147,6 +147,9 @@ int main(void)
     .microsec_timer           =   &MICROSEC_TIMER,
     .rtc                      =   &RTC_HANDLE,
 
+    .esp_en_port              =   ESP_EN_GPIO_Port,
+    .esp_en_pin               =   ESP_EN_Pin,
+
     .i2c_init_fn              =   MX_I2C1_Init,
     .i2c_sda_pins             =   {I2C1_SDA_Pin,I2C2_SDA_Pin,0},
     .i2c_scl_pins             =   {I2C1_SCL_Pin,I2C2_SCL_Pin,0},

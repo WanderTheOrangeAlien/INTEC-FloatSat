@@ -75,7 +75,7 @@ void Task_CoreFn(void *args)
         // Check if there is a new command. Do not block
         // TODO: Finish core behaviour. For now we block to ease debugging
         if(xQueueReceive(handle->cmd_queue, &handle->current_cmd, 0)){
-            Core_HandleCmd(handle, &handle->current_cmd); // TODO: Check error
+            Core_HandleCmd(handle, &handle->current_cmd);
         }
 
         // If the commmand requested an action, perform it at the end
@@ -119,6 +119,13 @@ static floatsat_err_t Core_Update(floatsat_core_t *handle)
     if(handle->action_flags & CORE_ACTION_PHOTO_CLEANUP){
         Core_OnPhotoFinish(handle);
         handle->action_flags &= (uint32_t)~CORE_ACTION_PHOTO_CLEANUP;
+    }
+
+    if(handle->action_flags & CORE_ACTION_BRIDGE_ACTIVE){
+        handle->telementry_handle->bridge_active = true;
+        handle->action_flags &= (uint32_t)~CORE_ACTION_BRIDGE_ACTIVE;
+        LOGI(LOG_TAG,"Telemetry now active");
+
     }
 
      if(handle->action_flags & CORE_ACTION_TAKE_PHOTO){

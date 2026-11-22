@@ -20,9 +20,12 @@
 #define DEBUG_PACKET_ID_RTC         0x03
 
 
+#define INFO_CHUNK_DATA_SIZE        32U
+
 typedef struct __attribute__((packed)) telemetry_packet_fast_t {
     Vec3_t orientation;
     float rw_speed;
+    uint16_t end_marker;
 }telemetry_packet_fast_t;
 
 
@@ -30,6 +33,7 @@ typedef struct __attribute__((packed)) telemetry_packet_fast_t {
 typedef struct __attribute__((packed)) telemetry_packet_slow_t {
     float temp;
     float v_batt;
+    uint16_t end_marker;
     // TODO: Add Subsystem health indicators
 
 }telemetry_packet_slow_t;
@@ -43,12 +47,15 @@ typedef struct __attribute__((packed)) telemetry_packet_debug_t {
         control_data_t  control_data;
         floatsat_time_t rtc_time;
     };
+    uint16_t end_marker;
     
 }telemetry_packet_debug_t;
 
 typedef struct __attribute__((packed)) telemetry_packet_cmd_t {
     uint8_t type;
     esp_cmd_t cmd;
+    uint16_t end_marker;
+
 }telemetry_packet_cmd_t;
 
 typedef struct __attribute__((packed)) telemetry_packet_t {
@@ -66,14 +73,34 @@ typedef struct __attribute__((packed)) info_packet_header_t {
     uint8_t nchunks;
     uint8_t last_chunk_size;
     uint16_t crc;
+    uint16_t end_marker;
 }info_packet_header_t;
 
 typedef struct __attribute__((packed)) info_packet_chunk_t {
     uint8_t type;
     uint8_t chunk_number;
-    uint8_t *data; // When transmiting, will only read INFO_CHUNK_DATA_SIZE bytes from this pointer
+    uint8_t data[INFO_CHUNK_DATA_SIZE]; // When transmiting, will only read INFO_CHUNK_DATA_SIZE bytes from this pointer
+    uint16_t end_marker;
 
 }info_packet_chunk_t;
 
 
+#define PACKET_LEN_FAST             (offsetof(telemetry_packet_t, fast) + sizeof(telemetry_packet_fast_t))
+#define PACKET_LEN_EXTENDED         (offsetof(telemetry_packet_t, slow) + sizeof(telemetry_packet_slow_t) )
+#define PACKET_LEN_INFO_HEADER      (sizeof(info_packet_header_t))
+#define PACKET_LEN_INFO_CHUNK       (sizeof(info_packet_chunk_t))
+#define PACKET_LEN_DEBUG            (sizeof(telemetry_packet_debug_t))
+#define PACKET_LEN_CMD              (sizeof(telemetry_packet_cmd_t))
+
+#define PACKET_END_MARKER_LEN       2U
+#define PACKET_END_MARKER_VAL       ((uint16_t)0xCAFE)
+
+#define PACKET_LEN_ARR() { \
+    [PACKET_TYPE_FAST]          PACKET_LEN_FAST,       \
+    [PACKET_TYPE_EXTENDED]      PACKET_LEN_EXTENDED,   \
+    [PACKET_TYPE_INFO_HEADER]   PACKET_LEN_INFO_HEADER,\
+    [PACKET_TYPE_INFO_CHUNK]    PACKET_LEN_INFO_CHUNK, \
+    [PACKET_TYPE_DEBUG]         PACKET_LEN_DEBUG,      \
+    [PACKET_TYPE_CMD]           PACKET_LEN_CMD         \
+    }
 #endif

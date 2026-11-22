@@ -73,7 +73,13 @@ class PacketError(Exception):
 # Incoming packets
 # --------------------------------------------------------------------------
 
-_FAST = struct.Struct("<BQ3ff")          # type, timestamp, orientation xyz, rw
+# Every packet ends with a 2-byte end marker (PACKET_END_MARKER_VAL in
+# Shared/fs_packets.h). parse_packet checks and strips it, so the structs
+# below describe the frame *without* the marker.
+END_MARKER = 0xCAFE
+_END_MARKER = struct.Struct("<H")
+
+_FAST = struct.Struct("<BQ3ff")          # type, timestamp, orientation xyz, rw (end marker stripped)
 _DEBUG_HEADER = struct.Struct("<BB")     # type, debug_id
 _IMU = struct.Struct("<Q9f")              # IMU_data_t: timestamp, accel, gyro, mag
 _CONTROL = struct.Struct("<Q6f")         # control_data_t: timestamp, angle, angle_ref, w, w_ref, pwm_out, rw_speed
@@ -119,6 +125,7 @@ def _parse_debug(data: bytes):
     size, parser = entry
     # The firmware sends sizeof(telemetry_packet_debug_t), which is sized for
     # the union's largest member, so the frame can be longer than this member.
+    # (The end marker sits after the whole union and was already stripped.)
     need = _DEBUG_HEADER.size + size
     if len(data) < need:
         raise PacketError(f"debug packet id {debug_id}: {len(data)} bytes, expected at least {need}")
@@ -140,7 +147,12 @@ def parse_packet(data: bytes):
     parser = _PARSERS.get(data[0])
     if parser is None:
         raise PacketError(f"unknown packet type {data[0]}")
-    return parser(data)
+    if len(data) < 1 + _END_MARKER.size:
+        raise PacketError(f"packet type {data[0]}: {len(data)} bytes, too short for end marker")
+    (marker,) = _END_MARKER.unpack_from(data, len(data) - _END_MARKER.size)
+    if marker != END_MARKER:
+        raise PacketError(f"packet type {data[0]}: bad end marker 0x{marker:04x}, expected 0x{END_MARKER:04x}")
+    return parser(data[:-_END_MARKER.size])
 
 
 # --------------------------------------------------------------------------

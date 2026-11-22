@@ -231,7 +231,7 @@ static floatsat_err_t VEML7700_ValidateParams(VEML7700_handle_t *handle)
     }
 
     // Check persistence
-    param = (uint16_t)~VEML7700_MASK_ALS_PERS >> 4;
+    param = handle->persistence >> 4;
     if(param > 0x03){
         return ERR_INVALID_ARG;
     }

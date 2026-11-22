@@ -163,6 +163,7 @@ static struct {
     struct arg_lit *reset;
     struct arg_int *debug_id;
     struct arg_str *invoke_cb;
+    struct arg_str *set_rtc;
     struct arg_end *end;
 }argtable_system;
 
@@ -342,6 +343,7 @@ static int cmd_init_system(void){
     argtable_system.reset               = arg_lit0(NULL,"reset","Reset the microcontroller");
     argtable_system.debug_id            = arg_int0(NULL,"debug-id","uint8_t", "Set the debug packet ID");
     argtable_system.invoke_cb           = arg_str0(NULL,"invoke-cb", "string", "Invoke a system callback");
+    argtable_system.set_rtc             = arg_str0(NULL, "set-rtc","MM/DD/yy hh:mm:ss","Set the RTC time and date");
     argtable_system.end                 = arg_end(CMD_MAX_ERRORS);
     
     return 0;
@@ -793,6 +795,18 @@ static floatsat_err_t parse_cmd_system(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
 
             cmd->sysctl_args.action_flags |= CMD_SYSCTL_FLAG_INVOKE_CB;
             strncpy(cmd->sysctl_args.callback_name, argtable_system.invoke_cb->sval[0], CMD_SYSCTL_MAX_CB_NAME_LEN);
+        }
+
+        if(argtable_system.set_rtc->count > 0){
+            if(strlen(argtable_system.set_rtc->sval[0]) > CMD_SYSCTL_MAX_RTC_DATETIME_LEN){
+                LOGE(LOG_TAG, "Error: RTC datetime too long.");
+                return ERR_INVALID_CMD;
+            }
+
+            cmd->sysctl_args.action_flags |= CMD_SYSCTL_FLAG_SET_RTC;
+            Time_ParseTimeDateString(argtable_system.set_rtc->sval[0], &cmd->sysctl_args.rtc_time, &cmd->sysctl_args.rtc_date);
+
+
         }
         
     }

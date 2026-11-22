@@ -76,7 +76,7 @@ const osThreadAttr_t Task_Telecmd_attributes = {
 osThreadId_t Task_ControlHandle;
 const osThreadAttr_t Task_Control_attributes = {
   .name = "Task_Control",
-  .stack_size = 256 * 4,
+  .stack_size = 1024 * 4,
   .priority = (osPriority_t) osPriorityNormal3,
 };
 /* Definitions for Task_Core */

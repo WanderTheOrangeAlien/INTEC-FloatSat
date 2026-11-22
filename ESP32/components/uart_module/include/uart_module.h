@@ -1,19 +1,28 @@
 #ifndef UART_MODULE_H
 #define UART_MODULE_H
+#include <ctype.h>
 
 #include "freertos/FreeRTOS.h"
 #include "driver/uart.h"
+#include "driver/gpio.h"
 #include "esp_err.h"
 #include "esp_log.h"
 
 #include "fs_packets.h"
+#include "floatsat_types.h"
+#include "debug_buffer.h"
 
-#define UART_TASK_STACK_DEPTH       2048
+
+
+#define UART_MODULE_VER             2
+
+#define UART_TASK_STACK_DEPTH       3000
 #define UART_TASK_PRIORITY          5
 
-/* @UART_RX_STATE */
-#define UART_RX_STATE_WAIT_HEADER   0
-#define UART_RX_STATE_WAIT_BODY     1
+
+#define UART_RECOVERY_START             0
+#define UART_RECOVERY_WAITING_FAST      1
+#define UART_RECOVERY_WAITING_DEBUG     2
 
 // #define PACKET_TYPE_FAST            0   // Only the orientation vector
 // #define PACKET_TYPE_EXTENDED        1   // Orientation plus all sensors and subsystem health
@@ -43,8 +52,7 @@ typedef struct uart_module_config_t {
     
     on_rx_cplt_cb_t on_rx_complete;
     size_t          info_buffer_len;    // Floatsat info messages are buffered in this buffer before sending them completely
-    on_info_cplt_cb_t on_info_complete;
-     
+    on_info_cplt_cb_t on_info_complete;     
 }uart_module_config_t;
 
 typedef struct uart_module_handle_t {
@@ -56,6 +64,8 @@ typedef struct uart_module_handle_t {
     uint8_t                 *rx_buffer;
     size_t                  rx_idx;
     uint8_t                 rx_state; // See @UART_RX_STATE
+    uint8_t                 recovery_state;
+
     uint8_t                 current_packet_type;
     size_t                  current_packet_bytes;
 
@@ -63,6 +73,9 @@ typedef struct uart_module_handle_t {
     uint8_t                 info_chunks_to_wait;
     uint8_t                 info_chunk_idx;
     uint8_t                 last_chunk_size; 
+
+    bool received_break;
+
 }uart_module_handle_t;
 
 esp_err_t UART_Init(uart_module_handle_t *handle);

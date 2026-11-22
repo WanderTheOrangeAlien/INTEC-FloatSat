@@ -23,8 +23,8 @@
 #define CORE_ACTION_TAKE_PHOTO              (1U << 3)
 #define CORE_ACTION_PHOTO_CLEANUP           (1U << 4)
 #define CORE_ACTION_RESET_PHOTOS            (1U << 5)
-
 #define CORE_ACTION_CHANGE_MISSION          (1U << 6)
+#define CORE_ACTION_BRIDGE_ACTIVE           (1U << 7)
 
 #define CORE_MAX_PHOTO_INSTRUCTIONS         32
 #define CORE_PHOTO_PREPARATION_TIME_S       10U // TODO: Change this to an actual measured value

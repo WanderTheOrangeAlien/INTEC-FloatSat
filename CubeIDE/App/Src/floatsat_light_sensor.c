@@ -9,7 +9,7 @@ floatsat_err_t LightSensor_Init(light_sensor_handle_t *handle)
     }
 
     if(!handle->multiplexer 
-        || !handle->sensors[0] || !handle->sensors[1] || handle->sensors[2])
+        || !handle->sensors[0] || !handle->sensors[1] || !handle->sensors[2])
     {
         return ERR_INVALID_ARG;
     }

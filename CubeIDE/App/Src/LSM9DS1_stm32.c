@@ -557,6 +557,7 @@ static floatsat_err_t IMU_ReadRegInc(const IMU_handle_t *handle, uint8_t device,
     
     uint8_t reg_addr = reg | LSM9DS1_AUTO_INC_BIT;
 
+
     HAL_StatusTypeDef status = HAL_I2C_Mem_Read(handle->i2c_handle, dev_addr << 1, 
                                 reg_addr, 1U, data, data_len, LSM9DS1_I2C_TIMEOUT);
     

@@ -1,0 +1,106 @@
+12:48:11 **** Incremental Build of configuration Debug for project FloatSat_v1 ****
+make -j12 all 
+arm-none-eabi-gcc "../Core/Src/dma.c" -mcpu=cortex-m4 -std=gnu11 -g3 -DDEBUG -DUSE_HAL_DRIVER -DSTM32F407xx -c -I../Core/Inc -I../../Shared -I../Drivers/STM32F4xx_HAL_Driver/Inc -I../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I../Middlewares/Third_Party/FreeRTOS/Source/include -I../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I../Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F -I../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I../Drivers/CMSIS/Include -I../build/vendor/cmock/src -I../build/vendor/unity/src -I../App/Inc -I../Lib/Inc -I../Lib/Inc/Fusion -I../Lib/Inc/TraceRecorder/config -I../Lib/Inc/TraceRecorder/include -I../Lib/Inc/TraceRecorder/RingBuffer/config -I../Lib/Inc/TraceRecorder/RingBuffer/include -O0 -ffunction-sections -fdata-sections -Wall -Wpedantic -fstack-usage -fcyclomatic-complexity -MMD -MP -MF"Core/Src/dma.d" -MT"Core/Src/dma.o" --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -o "Core/Src/dma.o"
+arm-none-eabi-gcc "../Core/Src/freertos.c" -mcpu=cortex-m4 -std=gnu11 -g3 -DDEBUG -DUSE_HAL_DRIVER -DSTM32F407xx -c -I../Core/Inc -I../../Shared -I../Drivers/STM32F4xx_HAL_Driver/Inc -I../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I../Middlewares/Third_Party/FreeRTOS/Source/include -I../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I../Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F -I../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I../Drivers/CMSIS/Include -I../build/vendor/cmock/src -I../build/vendor/unity/src -I../App/Inc -I../Lib/Inc -I../Lib/Inc/Fusion -I../Lib/Inc/TraceRecorder/config -I../Lib/Inc/TraceRecorder/include -I../Lib/Inc/TraceRecorder/RingBuffer/config -I../Lib/Inc/TraceRecorder/RingBuffer/include -O0 -ffunction-sections -fdata-sections -Wall -Wpedantic -fstack-usage -fcyclomatic-complexity -MMD -MP -MF"Core/Src/freertos.d" -MT"Core/Src/freertos.o" --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -o "Core/Src/freertos.o"
+arm-none-eabi-gcc "../Core/Src/gpio.c" -mcpu=cortex-m4 -std=gnu11 -g3 -DDEBUG -DUSE_HAL_DRIVER -DSTM32F407xx -c -I../Core/Inc -I../../Shared -I../Drivers/STM32F4xx_HAL_Driver/Inc -I../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I../Middlewares/Third_Party/FreeRTOS/Source/include -I../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I../Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F -I../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I../Drivers/CMSIS/Include -I../build/vendor/cmock/src -I../build/vendor/unity/src -I../App/Inc -I../Lib/Inc -I../Lib/Inc/Fusion -I../Lib/Inc/TraceRecorder/config -I../Lib/Inc/TraceRecorder/include -I../Lib/Inc/TraceRecorder/RingBuffer/config -I../Lib/Inc/TraceRecorder/RingBuffer/include -O0 -ffunction-sections -fdata-sections -Wall -Wpedantic -fstack-usage -fcyclomatic-complexity -MMD -MP -MF"Core/Src/gpio.d" -MT"Core/Src/gpio.o" --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -o "Core/Src/gpio.o"
+arm-none-eabi-gcc "../Core/Src/i2c.c" -mcpu=cortex-m4 -std=gnu11 -g3 -DDEBUG -DUSE_HAL_DRIVER -DSTM32F407xx -c -I../Core/Inc -I../../Shared -I../Drivers/STM32F4xx_HAL_Driver/Inc -I../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I../Middlewares/Third_Party/FreeRTOS/Source/include -I../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I../Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F -I../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I../Drivers/CMSIS/Include -I../build/vendor/cmock/src -I../build/vendor/unity/src -I../App/Inc -I../Lib/Inc -I../Lib/Inc/Fusion -I../Lib/Inc/TraceRecorder/config -I../Lib/Inc/TraceRecorder/include -I../Lib/Inc/TraceRecorder/RingBuffer/config -I../Lib/Inc/TraceRecorder/RingBuffer/include -O0 -ffunction-sections -fdata-sections -Wall -Wpedantic -fstack-usage -fcyclomatic-complexity -MMD -MP -MF"Core/Src/i2c.d" -MT"Core/Src/i2c.o" --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -o "Core/Src/i2c.o"
+arm-none-eabi-gcc "../Core/Src/main.c" -mcpu=cortex-m4 -std=gnu11 -g3 -DDEBUG -DUSE_HAL_DRIVER -DSTM32F407xx -c -I../Core/Inc -I../../Shared -I../Drivers/STM32F4xx_HAL_Driver/Inc -I../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I../Middlewares/Third_Party/FreeRTOS/Source/include -I../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I../Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F -I../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I../Drivers/CMSIS/Include -I../build/vendor/cmock/src -I../build/vendor/unity/src -I../App/Inc -I../Lib/Inc -I../Lib/Inc/Fusion -I../Lib/Inc/TraceRecorder/config -I../Lib/Inc/TraceRecorder/include -I../Lib/Inc/TraceRecorder/RingBuffer/config -I../Lib/Inc/TraceRecorder/RingBuffer/include -O0 -ffunction-sections -fdata-sections -Wall -Wpedantic -fstack-usage -fcyclomatic-complexity -MMD -MP -MF"Core/Src/main.d" -MT"Core/Src/main.o" --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -o "Core/Src/main.o"
+arm-none-eabi-gcc "../Core/Src/rtc.c" -mcpu=cortex-m4 -std=gnu11 -g3 -DDEBUG -DUSE_HAL_DRIVER -DSTM32F407xx -c -I../Core/Inc -I../../Shared -I../Drivers/STM32F4xx_HAL_Driver/Inc -I../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I../Middlewares/Third_Party/FreeRTOS/Source/include -I../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I../Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F -I../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I../Drivers/CMSIS/Include -I../build/vendor/cmock/src -I../build/vendor/unity/src -I../App/Inc -I../Lib/Inc -I../Lib/Inc/Fusion -I../Lib/Inc/TraceRecorder/config -I../Lib/Inc/TraceRecorder/include -I../Lib/Inc/TraceRecorder/RingBuffer/config -I../Lib/Inc/TraceRecorder/RingBuffer/include -O0 -ffunction-sections -fdata-sections -Wall -Wpedantic -fstack-usage -fcyclomatic-complexity -MMD -MP -MF"Core/Src/rtc.d" -MT"Core/Src/rtc.o" --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -o "Core/Src/rtc.o"
+arm-none-eabi-gcc "../Core/Src/stm32f4xx_hal_msp.c" -mcpu=cortex-m4 -std=gnu11 -g3 -DDEBUG -DUSE_HAL_DRIVER -DSTM32F407xx -c -I../Core/Inc -I../../Shared -I../Drivers/STM32F4xx_HAL_Driver/Inc -I../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I../Middlewares/Third_Party/FreeRTOS/Source/include -I../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I../Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F -I../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I../Drivers/CMSIS/Include -I../build/vendor/cmock/src -I../build/vendor/unity/src -I../App/Inc -I../Lib/Inc -I../Lib/Inc/Fusion -I../Lib/Inc/TraceRecorder/config -I../Lib/Inc/TraceRecorder/include -I../Lib/Inc/TraceRecorder/RingBuffer/config -I../Lib/Inc/TraceRecorder/RingBuffer/include -O0 -ffunction-sections -fdata-sections -Wall -Wpedantic -fstack-usage -fcyclomatic-complexity -MMD -MP -MF"Core/Src/stm32f4xx_hal_msp.d" -MT"Core/Src/stm32f4xx_hal_msp.o" --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -o "Core/Src/stm32f4xx_hal_msp.o"
+arm-none-eabi-gcc "../Core/Src/stm32f4xx_it.c" -mcpu=cortex-m4 -std=gnu11 -g3 -DDEBUG -DUSE_HAL_DRIVER -DSTM32F407xx -c -I../Core/Inc -I../../Shared -I../Drivers/STM32F4xx_HAL_Driver/Inc -I../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I../Middlewares/Third_Party/FreeRTOS/Source/include -I../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I../Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F -I../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I../Drivers/CMSIS/Include -I../build/vendor/cmock/src -I../build/vendor/unity/src -I../App/Inc -I../Lib/Inc -I../Lib/Inc/Fusion -I../Lib/Inc/TraceRecorder/config -I../Lib/Inc/TraceRecorder/include -I../Lib/Inc/TraceRecorder/RingBuffer/config -I../Lib/Inc/TraceRecorder/RingBuffer/include -O0 -ffunction-sections -fdata-sections -Wall -Wpedantic -fstack-usage -fcyclomatic-complexity -MMD -MP -MF"Core/Src/stm32f4xx_it.d" -MT"Core/Src/stm32f4xx_it.o" --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -o "Core/Src/stm32f4xx_it.o"
+arm-none-eabi-gcc "../Core/Src/tim.c" -mcpu=cortex-m4 -std=gnu11 -g3 -DDEBUG -DUSE_HAL_DRIVER -DSTM32F407xx -c -I../Core/Inc -I../../Shared -I../Drivers/STM32F4xx_HAL_Driver/Inc -I../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I../Middlewares/Third_Party/FreeRTOS/Source/include -I../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I../Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F -I../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I../Drivers/CMSIS/Include -I../build/vendor/cmock/src -I../build/vendor/unity/src -I../App/Inc -I../Lib/Inc -I../Lib/Inc/Fusion -I../Lib/Inc/TraceRecorder/config -I../Lib/Inc/TraceRecorder/include -I../Lib/Inc/TraceRecorder/RingBuffer/config -I../Lib/Inc/TraceRecorder/RingBuffer/include -O0 -ffunction-sections -fdata-sections -Wall -Wpedantic -fstack-usage -fcyclomatic-complexity -MMD -MP -MF"Core/Src/tim.d" -MT"Core/Src/tim.o" --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -o "Core/Src/tim.o"
+arm-none-eabi-gcc "../Core/Src/usart.c" -mcpu=cortex-m4 -std=gnu11 -g3 -DDEBUG -DUSE_HAL_DRIVER -DSTM32F407xx -c -I../Core/Inc -I../../Shared -I../Drivers/STM32F4xx_HAL_Driver/Inc -I../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I../Middlewares/Third_Party/FreeRTOS/Source/include -I../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I../Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F -I../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I../Drivers/CMSIS/Include -I../build/vendor/cmock/src -I../build/vendor/unity/src -I../App/Inc -I../Lib/Inc -I../Lib/Inc/Fusion -I../Lib/Inc/TraceRecorder/config -I../Lib/Inc/TraceRecorder/include -I../Lib/Inc/TraceRecorder/RingBuffer/config -I../Lib/Inc/TraceRecorder/RingBuffer/include -O0 -ffunction-sections -fdata-sections -Wall -Wpedantic -fstack-usage -fcyclomatic-complexity -MMD -MP -MF"Core/Src/usart.d" -MT"Core/Src/usart.o" --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -o "Core/Src/usart.o"
+arm-none-eabi-gcc "../App/Src/floatsat_control.c" -mcpu=cortex-m4 -std=gnu11 -g3 -DDEBUG -DUSE_HAL_DRIVER -DSTM32F407xx -c -I../Core/Inc -I../../Shared -I../Drivers/STM32F4xx_HAL_Driver/Inc -I../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I../Middlewares/Third_Party/FreeRTOS/Source/include -I../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I../Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F -I../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I../Drivers/CMSIS/Include -I../build/vendor/cmock/src -I../build/vendor/unity/src -I../App/Inc -I../Lib/Inc -I../Lib/Inc/Fusion -I../Lib/Inc/TraceRecorder/config -I../Lib/Inc/TraceRecorder/include -I../Lib/Inc/TraceRecorder/RingBuffer/config -I../Lib/Inc/TraceRecorder/RingBuffer/include -O0 -ffunction-sections -fdata-sections -Wall -Wall -Wextra -Wpedantic -Werror -Wconversion -Wsign-conversion -Wdouble-promotion -Wfloat-equal -Wswitch-default -Wimplicit-fallthrough -Wuninitialized -Wundef -Wdangling-pointer -Wshadow -Wcast-qual -Wcast-align -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wwrite-strings -Waddress -Wformat  -Wunreachable-code -Wmissing-noreturn -fstack-usage -fcyclomatic-complexity -MMD -MP -MF"App/Src/floatsat_control.d" -MT"App/Src/floatsat_control.o" --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -o "App/Src/floatsat_control.o"
+arm-none-eabi-gcc "../App/Src/floatsat_core.c" -mcpu=cortex-m4 -std=gnu11 -g3 -DDEBUG -DUSE_HAL_DRIVER -DSTM32F407xx -c -I../Core/Inc -I../../Shared -I../Drivers/STM32F4xx_HAL_Driver/Inc -I../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I../Middlewares/Third_Party/FreeRTOS/Source/include -I../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I../Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F -I../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I../Drivers/CMSIS/Include -I../build/vendor/cmock/src -I../build/vendor/unity/src -I../App/Inc -I../Lib/Inc -I../Lib/Inc/Fusion -I../Lib/Inc/TraceRecorder/config -I../Lib/Inc/TraceRecorder/include -I../Lib/Inc/TraceRecorder/RingBuffer/config -I../Lib/Inc/TraceRecorder/RingBuffer/include -O0 -ffunction-sections -fdata-sections -Wall -Wall -Wextra -Wpedantic -Werror -Wconversion -Wsign-conversion -Wdouble-promotion -Wfloat-equal -Wswitch-default -Wimplicit-fallthrough -Wuninitialized -Wundef -Wdangling-pointer -Wshadow -Wcast-qual -Wcast-align -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wwrite-strings -Waddress -Wformat  -Wunreachable-code -Wmissing-noreturn -fstack-usage -fcyclomatic-complexity -MMD -MP -MF"App/Src/floatsat_core.d" -MT"App/Src/floatsat_core.o" --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -o "App/Src/floatsat_core.o"
+In file included from ../Lib/Inc/Fusion/FusionAhrs.h:14,
+                 from ../Lib/Inc/Fusion/Fusion.h:17,
+                 from ../App/Inc/floatsat_control.h:14,
+                 from ../App/Src/floatsat_control.c:1:
+../Lib/Inc/Fusion/FusionMath.h: In function 'FusionVectorIsZero':
+../Lib/Inc/Fusion/FusionMath.h:188:22: error: comparing floating-point with '==' or '!=' is unsafe [-Werror=float-equal]
+  188 |     return (v.axis.x == 0.0f) && (v.axis.y == 0.0f) && (v.axis.z == 0.0f);
+      |                      ^~
+../Lib/Inc/Fusion/FusionMath.h:188:44: error: comparing floating-point with '==' or '!=' is unsafe [-Werror=float-equal]
+  188 |     return (v.axis.x == 0.0f) && (v.axis.y == 0.0f) && (v.axis.z == 0.0f);
+      |                                            ^~
+../Lib/Inc/Fusion/FusionMath.h:188:66: error: comparing floating-point with '==' or '!=' is unsafe [-Werror=float-equal]
+  188 |     return (v.axis.x == 0.0f) && (v.axis.y == 0.0f) && (v.axis.z == 0.0f);
+      |                                                                  ^~
+../Lib/Inc/Fusion/FusionMath.h: In function 'FusionVectorEqual':
+../Lib/Inc/Fusion/FusionMath.h:198:22: error: comparing floating-point with '==' or '!=' is unsafe [-Werror=float-equal]
+  198 |     return (a.axis.x == b.axis.x) &&
+      |                      ^~
+../Lib/Inc/Fusion/FusionMath.h:199:22: error: comparing floating-point with '==' or '!=' is unsafe [-Werror=float-equal]
+  199 |            (a.axis.y == b.axis.y) &&
+      |                      ^~
+../Lib/Inc/Fusion/FusionMath.h:200:22: error: comparing floating-point with '==' or '!=' is unsafe [-Werror=float-equal]
+  200 |            (a.axis.z == b.axis.z);
+      |                      ^~
+In file included from ../Lib/Inc/Fusion/Fusion.h:23:
+../Lib/Inc/Fusion/FusionRemap.h: In function 'FusionRemap':
+../Lib/Inc/Fusion/FusionRemap.h:68:5: error: switch missing default case [-Werror=switch-default]
+   68 |     switch (alignment) {
+      |     ^~~~~~
+In file included from ../Lib/Inc/Fusion/FusionAhrs.h:14,
+                 from ../Lib/Inc/Fusion/Fusion.h:17,
+                 from ../App/Inc/floatsat_control.h:14,
+                 from ../App/Inc/floatsat_core_types.h:12,
+                 from ../App/Inc/floatsat_core.h:4,
+                 from ../App/Src/floatsat_core.c:1:
+../Lib/Inc/Fusion/FusionMath.h: In function 'FusionVectorIsZero':
+../Lib/Inc/Fusion/FusionMath.h:188:22: error: comparing floating-point with '==' or '!=' is unsafe [-Werror=float-equal]
+  188 |     return (v.axis.x == 0.0f) && (v.axis.y == 0.0f) && (v.axis.z == 0.0f);
+      |                      ^~
+../Lib/Inc/Fusion/FusionMath.h:188:44: error: comparing floating-point with '==' or '!=' is unsafe [-Werror=float-equal]
+  188 |     return (v.axis.x == 0.0f) && (v.axis.y == 0.0f) && (v.axis.z == 0.0f);
+      |                                            ^~
+../Lib/Inc/Fusion/FusionMath.h:188:66: error: comparing floating-point with '==' or '!=' is unsafe [-Werror=float-equal]
+  188 |     return (v.axis.x == 0.0f) && (v.axis.y == 0.0f) && (v.axis.z == 0.0f);
+      |                                                                  ^~
+../Lib/Inc/Fusion/FusionMath.h: In function 'FusionVectorEqual':
+../Lib/Inc/Fusion/FusionMath.h:198:22: error: comparing floating-point with '==' or '!=' is unsafe [-Werror=float-equal]
+  198 |     return (a.axis.x == b.axis.x) &&
+      |                      ^~
+../Lib/Inc/Fusion/FusionMath.h:199:22: error: comparing floating-point with '==' or '!=' is unsafe [-Werror=float-equal]
+  199 |            (a.axis.y == b.axis.y) &&
+      |                      ^~
+../Lib/Inc/Fusion/FusionMath.h:200:22: error: comparing floating-point with '==' or '!=' is unsafe [-Werror=float-equal]
+  200 |            (a.axis.z == b.axis.z);
+      |                      ^~
+../App/Src/floatsat_control.c: In function 'Control_EstimateOrientation':
+In file included from ../Lib/Inc/Fusion/Fusion.h:23:
+../Lib/Inc/Fusion/FusionRemap.h: In function 'FusionRemap':
+../Lib/Inc/Fusion/FusionRemap.h:68:5: error: switch missing default case [-Werror=switch-default]
+   68 |     switch (alignment) {
+      |     ^~~~~~
+../App/Src/floatsat_control.c:191:35: error: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Werror=double-promotion]
+  191 |                 imu_data->accel.x / G_TO_MS2,
+      |                                   ^
+../App/Src/floatsat_control.c:191:17: error: conversion from 'double' to 'float' may change value [-Werror=float-conversion]
+  191 |                 imu_data->accel.x / G_TO_MS2,
+      |                 ^~~~~~~~
+../App/Src/floatsat_control.c:192:35: error: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Werror=double-promotion]
+  192 |                 imu_data->accel.y / G_TO_MS2,
+      |                                   ^
+../App/Src/floatsat_control.c:192:17: error: conversion from 'double' to 'float' may change value [-Werror=float-conversion]
+  192 |                 imu_data->accel.y / G_TO_MS2,
+      |                 ^~~~~~~~
+../App/Src/floatsat_control.c:193:35: error: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Werror=double-promotion]
+  193 |                 imu_data->accel.z / G_TO_MS2}
+      |                                   ^
+../App/Src/floatsat_control.c:193:17: error: conversion from 'double' to 'float' may change value [-Werror=float-conversion]
+  193 |                 imu_data->accel.z / G_TO_MS2}
+      |                 ^~~~~~~~
+../App/Src/floatsat_control.c: At top level:
+../App/Src/floatsat_control.c:14:21: error: 'forward_vec' defined but not used [-Werror=unused-const-variable=]
+   14 | static const Vec3_t forward_vec = {1,0,0}; // Here we assume that the north corresponds to the X axis.
+      |                     ^~~~~~~~~~~
+cc1: all warnings being treated as errors
+make: *** [App/Src/subdir.mk:76: App/Src/floatsat_core.o] Error 1
+make: *** Waiting for unfinished jobs....
+cc1: all warnings being treated as errors
+make: *** [App/Src/subdir.mk:76: App/Src/floatsat_control.o] Error 1
+"make -j12 all" terminated with exit code 2. Build might be incomplete.
+
+12:48:11 Build Failed. 24 errors, 0 warnings. (took 486ms)
+

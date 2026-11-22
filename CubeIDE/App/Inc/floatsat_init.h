@@ -32,6 +32,9 @@ typedef struct floatsat_periph_t {
     TIM_HandleTypeDef       *microsec_timer;
     RTC_HandleTypeDef       *rtc;
 
+    GPIO_TypeDef            *esp_en_port;
+    uint16_t                esp_en_pin;
+
     // Functions and other info
 
     void                    (*i2c_init_fn)(void);

@@ -3,6 +3,7 @@
 
 static esp_err_t websocket_handler(httpd_req_t *req);
 static esp_err_t ws_on_connect(httpd_req_t *req);
+static void on_ws_send_done(esp_err_t err, int socket, void *args);
 
 static const char *TAG = "WEBSOCKET";
 
@@ -117,9 +118,15 @@ esp_err_t Websocket_Send(ws_handle_t *handle, uint8_t *buffer, size_t len, httpd
         return ESP_FAIL;
     }
 
+    uint8_t *copy = malloc(len);
+    if(!copy){
+        return ESP_ERR_NO_MEM;
+    }
+    memcpy(copy, buffer, len);
+
     httpd_ws_frame_t frame = {
         .len = len,
-        .payload = buffer,
+        .payload = copy,
         .type = type
     };
 
@@ -127,10 +134,22 @@ esp_err_t Websocket_Send(ws_handle_t *handle, uint8_t *buffer, size_t len, httpd
     // If the ws send is not finished with the current contents and the payload and the uart overwrites the buffer
     // contents, we have a race condition. Consider copying. A memcyp of < 64 bytes is trivial
 
-    httpd_ws_send_data_async(handle->server_handle, handle->clients[0].fd, 
-        &frame, NULL, NULL);
+    esp_err_t ret =httpd_ws_send_data_async(handle->server_handle, handle->clients[0].fd, 
+        &frame, on_ws_send_done, copy);
 
-    
+    if(ret != ESP_OK){
+        free(copy);
+        return ret;
+    }
 
     return ESP_OK;
+}
+
+
+static void on_ws_send_done(esp_err_t err, int socket, void *args)
+{
+
+    (void)err;
+    (void)socket;
+    free(args);
 }

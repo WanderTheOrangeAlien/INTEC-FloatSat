@@ -40,7 +40,6 @@ void Task_LogFn(void *params)
             ret = ERR_OK;
         }
 
-        // Try to acquire the buffer
         if(ret != ERR_OK){
             // Send notification to itself to increase the pending msg count that was decremented in ulTaskNotifyTake
             xTaskNotify(xTaskGetCurrentTaskHandle(),1U,eIncrement);

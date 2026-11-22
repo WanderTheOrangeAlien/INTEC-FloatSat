@@ -25,9 +25,9 @@ from pathlib import Path
 
 from ..protocol import ControlDebug, DebugId
 
-DURATION_S = 40.0               # how long to record, in seconds
+DURATION_S = 20.0               # how long to record, in seconds
 RESULTS_DIR = Path("results")
-START_COMMANDS = [f"sys --debug-id {int(DebugId.CONTROL)}", "control --enable"]
+START_COMMANDS = [f"sys --debug-id 2", "control --enable"]
 STOP_COMMANDS = ["control --disable", "motor --pwm 0.00"]   # sent in this order
 
 PLOT_SCRIPT = Path(__file__).resolve().parent.parent / "plot_control.py"

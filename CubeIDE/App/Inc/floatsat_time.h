@@ -30,6 +30,8 @@ floatsat_err_t RTC_SetAlarm(rtc_handle_t *handle,
                             void *args);
 
 floatsat_err_t Time_ParseString(const char *buffer, floatsat_time_t *time);
+floatsat_err_t Time_ParseDateString(const char *buffer, floatsat_date_t *date);
+floatsat_err_t Time_ParseTimeDateString(const char *buffer, floatsat_time_t *time, floatsat_date_t *date);
 
 int Time_CompareTime(const floatsat_time_t *a, const floatsat_time_t *b);
 int Time_Delta(const floatsat_time_t *a, const floatsat_time_t *b);

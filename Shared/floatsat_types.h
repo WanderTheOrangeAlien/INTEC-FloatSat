@@ -37,7 +37,7 @@ typedef struct IMU_data_t {
 
 typedef uint64_t timestamp_t;
 
-#define IMU_MAG_OFFSET  ((Vec3_t){-0.0963f * 1e3f, 0.3806f * 1e3f,0.0f})
+#define IMU_MAG_OFFSET  ((Vec3_t){-0.0218f * 1e3f, 0.4711f * 1e3f, 0.0f})
 #define IMU_MAG_SCALE   ((Vec3_t){0.98395f, 1.01290f, 0.0f})
 
 /* ----------------- Control ----------------- */

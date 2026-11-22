@@ -30,7 +30,6 @@
 #define INFO_STATE_START            0U /* New info has been written. Construct the header and divide in chunks */
 #define INFO_STATE_TX               1U /* Transmitting. The info buffer is read and chunks are constructed and sent */
 
-#define INFO_CHUNK_DATA_SIZE        32U
 #define INFO_CHUNK_SIZE             (offsetof(info_packet_chunk_t, data) + INFO_CHUNK_DATA_SIZE)
 #define INFO_CHUNK_TIME_MARGIN_US   100U        // Microseconds of margin to leave before task switch is performed
 #define INFO_CHUNK_RX_TIME_US       (680U)    // Estimated time needed for sending a chunk.   
@@ -60,6 +59,8 @@ typedef struct telemetry_handle_t {
 
     uint8_t *info_buffer;                // Buffer acquired with `Telemetry_TakeInfoBuffer`
     volatile bool info_buffer_not_empty;
+
+    volatile bool bridge_active;
 
 }telemetry_handle_t;
 

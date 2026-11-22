@@ -4,22 +4,42 @@
   2. for DURATION_S seconds (this computer's clock), write one CSV row per
      IMU debug packet: timestamp, mag_x, mag_y
      (timestamp is the FloatSat's own, exactly as sent)
+  3. close the file, then open a plot window (separate process, so the
+     console keeps running) with a scatter plot of mag_y against mag_x
 
 No commands are sent during the recording or at the end. The file is closed
 on every exit path, so an aborted run keeps what it recorded.
 """
 import asyncio
 import csv
+import importlib.util
+import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 
 from ..protocol import DebugId, ImuDebug
 
-DURATION_S = 40.0               # how long to record, in seconds
+DURATION_S = 10.0               # how long to record, in seconds
 RESULTS_DIR = Path("results")
-START_COMMANDS = ["control --enable", f"sys --debug-id {int(DebugId.IMU)}"]
+START_COMMANDS = ["control --disable", "motor --pwm 0.0", f"sys --debug-id {int(DebugId.IMU)}"]
+PLOT_SCRIPT = Path(__file__).resolve().parent.parent / "plot_mag.py"
 
 NAME = "[test mag]"
+
+
+def _show_plots(path, log):
+    if importlib.util.find_spec("matplotlib") is None:
+        log(f"{NAME} matplotlib is not installed, skipping plots")
+        return
+    try:
+        # own process: plt.show() blocks, and would freeze the console otherwise
+        subprocess.Popen([sys.executable, str(PLOT_SCRIPT), str(path)],
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL, start_new_session=True)
+        log(f"{NAME} opening plots")
+    except OSError as e:
+        log(f"{NAME} could not open plots ({e})")
 
 
 async def run(link, log):
@@ -58,3 +78,4 @@ async def run(link, log):
         log(f"{NAME} no IMU debug packets received. Is the debug output enabled?")
     else:
         log(f"{NAME} done, {rows} rows saved to {path}")
+        _show_plots(path, log)

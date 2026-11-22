@@ -7,7 +7,8 @@
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/CubeIDE/App/**",
                 "${workspaceFolder}/CubeIDE/Middlewares/Third_Party/**",
-                "${workspaceFolder}/CubeIDE/Drivers/CMSIS/**"
+                "${workspaceFolder}/CubeIDE/Drivers/CMSIS/**",
+                "${workspaceFolder}/CubeIDE/Lib/**"
             ],
             "defines": [
                 "STM32F407xx",

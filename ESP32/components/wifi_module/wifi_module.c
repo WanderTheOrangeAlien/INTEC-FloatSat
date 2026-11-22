@@ -18,16 +18,13 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
             break;
 
         case WIFI_EVENT_STA_DISCONNECTED:
-            if(s_retry_num < WIFI_MAX_RETRY_NUM){
-                esp_wifi_connect();
-                s_retry_num++;
-                ESP_LOGI(TAG, "retry to connect to the AP");
-            }else{
-                ESP_LOGW(TAG, "Connection to AP failed");
-                s_retry_num = 0U;
-                xEventGroupSetBits(s_wifi_event_group, WIFI_BIT_FAIL);
+            esp_wifi_connect();
+            ESP_LOGI(TAG, "retry to connect to the AP");
 
+            if(s_retry_num++ >= WIFI_MAX_RETRY_NUM){
+                esp_restart();
             }
+           
             break;
         
         default:
@@ -108,11 +105,11 @@ static esp_err_t wifi_init_sta(wifi_module_config_t *config)
             portMAX_DELAY);
 
     if (bits & WIFI_BIT_CONNECTED) {
-        ESP_LOGI(TAG, "connected to ap SSID:%s password:%s\n\n",
-                 (char*)wifi_config.sta.ssid, (char*)wifi_config.sta.password);
+        ESP_LOGI(TAG, "connected to ap SSID:%s",
+                 (char*)wifi_config.sta.ssid);
     } else if (bits & WIFI_BIT_FAIL) {
-        ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s",
-                 (char*)wifi_config.sta.ssid, (char*)wifi_config.sta.password);
+        ESP_LOGI(TAG, "Failed to connect to SSID:%s. Trying again",
+                 (char*)wifi_config.sta.ssid);
     } else {
         ESP_LOGE(TAG, "UNEXPECTED EVENT");
     }

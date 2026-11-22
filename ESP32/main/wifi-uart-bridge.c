@@ -21,13 +21,11 @@ static void print_hex(uint8_t *buffer, size_t len);
 
 static const char LOG_TAG[] = "MAIN";
 
+static volatile bool initialized = false;
+
 static wifi_module_config_t wifi_config = {
-    .ssid       = "La Cueva del Dragon",
-    .password   = "ElVerdeTalisman29",
-    // .ssid       = "Miguel iPhone",
-    // .password   = "Maup1234",
-    // .ssid       = "Valen’s Phone",
-    // .password   = "valenzmovil04?",
+    .ssid       = CONFIG_WIFI_SSID,
+    .password   = CONFIG_WIFI_PASSWORD,
 
     .wifi_mode  = WIFI_MODE_STA
 };
@@ -64,6 +62,8 @@ static ws_handle_t ws_handle = {
     .on_rx = on_ws_rx
 };
 
+
+
 static esp_err_t on_ws_rx(uint8_t *buffer, size_t len)
 {
     printf("WS: ");
@@ -94,6 +94,10 @@ static void on_uart_rx(uint8_t *buffer, size_t len, uint8_t packet_type)
         return;
     }
 
+    if(!initialized){
+        return;
+    }
+
 
 #ifndef WIFI_DISABLE
     if(packet_type != PACKET_TYPE_INFO_CHUNK && packet_type != PACKET_TYPE_INFO_HEADER){
@@ -104,8 +108,10 @@ static void on_uart_rx(uint8_t *buffer, size_t len, uint8_t packet_type)
 
 static void on_uart_info(uint8_t *info_buffer, size_t len)
 {
-    // printf("[%s] Got info buffer with %zu bytes\n",__func__, len);
-    Websocket_Send(&ws_handle, info_buffer, len, HTTPD_WS_TYPE_TEXT);
+
+    if(initialized){
+        Websocket_Send(&ws_handle, info_buffer, len, HTTPD_WS_TYPE_TEXT);
+    }
 }
 
 static void handle_esp_command(esp_cmd_t *cmd)
@@ -136,6 +142,8 @@ void app_main(void)
     #ifndef WIFI_DISABLE
     ESP_ERROR_CHECK(Wifi_Init(&wifi_config));
     ESP_ERROR_CHECK(Websocket_Init(&ws_handle));
+    initialized = true;
+    UART_SendFloatsatCmd(&uart_handle, "sys --invoke-cb on_bridge_active");
 #endif
 }
 

@@ -47,6 +47,7 @@ floatsat_err_t Telemetry_Init(telemetry_handle_t *handle)
     handle->queue = xQueueCreate(TELEMETRY_QUEUE_SIZE, sizeof(telemetry_packet_t*));
     handle->info_semphr = xSemaphoreCreateMutex();
     info_buffer[0] = ASCII_ETX;
+    handle->bridge_active = false;
 
     if(handle->queue == 0U){
         LOGE(LOG_TAG,"Queue could not be created");
@@ -89,26 +90,18 @@ void Task_TelemetryFn(void *args)
         	LOGI(LOG_TAG,"Telemetry 10!");
         }
         TRACE_task_run_count++;
+        
+        if(handle->packet_type_mask & PACKET_MASK_FAST){
 
-        // Start by checking for error conditions
-        if(!(handle->packet_type_mask & PACKET_MASK_FAST)){
-            LOGE(LOG_TAG,"Task started without fast packet. Invalid state");
-            ret = ERR_INVALID_STATE;
-            goto err;
+            if(handle->packet_type_mask & PACKET_MASK_SLOW){
+                handle->current_packet.type = PACKET_TYPE_FAST;
+            }else{
+                handle->current_packet.type = PACKET_TYPE_FAST;
+            }
+            GOTO_ON_ERR(Telemetry_SendCurrentPacket(handle), err, ret);
+            // clear fast and slow flags
+            handle->packet_type_mask &= (uint8_t)~(PACKET_MASK_FAST | PACKET_MASK_SLOW);
         }
-
-        if(handle->packet_type_mask & PACKET_MASK_SLOW){
-            // Fast + Slow telemetry, whole packet
-            handle->current_packet.type = PACKET_TYPE_EXTENDED;
-
-        }else{
-            // Only fast telemetry, first part of packet
-            handle->current_packet.type = PACKET_TYPE_FAST;
-        }
-
-        GOTO_ON_ERR(Telemetry_SendCurrentPacket(handle), err, ret);
-        // clear fast and slow flags
-        handle->packet_type_mask &= (uint8_t)~(PACKET_MASK_FAST | PACKET_MASK_SLOW);
         
         // Handle debug packet
         if(handle->packet_type_mask & PACKET_MASK_DEBUG){
@@ -211,6 +204,11 @@ static floatsat_err_t Telemetry_SendCmd(telemetry_handle_t *handle)
         return ERR_INVALID_ARG;
     }
 
+    if(!handle->bridge_active){
+        return ERR_RESOURCE_NOT_AVAILABLE;
+    }
+
+
     handle->tx_busy = true;
     HAL_StatusTypeDef status = HAL_UART_Transmit_DMA(
         handle->uart,
@@ -231,21 +229,28 @@ floatsat_err_t Telemetry_AddFast(telemetry_handle_t *handle, telemetry_packet_fa
     if(!handle || !packet){
         return ERR_INVALID_ARG;
     }
-    bool last_packet_dropped = false;
+    if(!handle->bridge_active){
+        return ERR_RESOURCE_NOT_AVAILABLE;
+    }
 
+
+    bool last_packet_dropped = false;
+    
     /* TODO: Critical section might not be necesary, but I left it here to state that this block of code 
-        must not be interrupted
+    must not be interrupted
     */
-    taskENTER_CRITICAL(); 
-    if(handle->packet_type_mask & PACKET_MASK_FAST){
-        // Last fast telemetry was not dispatched. Indicate error but continue  
-        // operation
-        last_packet_dropped = true;
+   taskENTER_CRITICAL(); 
+   if(handle->packet_type_mask & PACKET_MASK_FAST){
+       // Last fast telemetry was not dispatched. Indicate error but continue  
+       // operation
+       last_packet_dropped = true;
     }else{
-         // Update the mask
+        // Update the mask
         handle->packet_type_mask |= PACKET_MASK_FAST;
     }
 
+    packet->end_marker = PACKET_END_MARKER_VAL;
+    
     handle->current_packet.timestamp = HAL_GetTick();
     handle->current_packet.fast = *packet;
     taskEXIT_CRITICAL();
@@ -265,6 +270,10 @@ floatsat_err_t Telemetry_AddSlow(telemetry_handle_t *handle, telemetry_packet_sl
         return ERR_INVALID_ARG;
     }
 
+    if(!handle->bridge_active){
+        return ERR_RESOURCE_NOT_AVAILABLE;
+    }
+
     if(handle->packet_type_mask & PACKET_MASK_SLOW){
         LOGW(LOG_TAG, "Warning: Last slow telemetry packet was not dispatched. "
             "Last packet will be dropped and will continue with the current one");
@@ -275,6 +284,7 @@ floatsat_err_t Telemetry_AddSlow(telemetry_handle_t *handle, telemetry_packet_sl
 
     // The slow packet uses the same timestamp as the preceeding fast packet, so 
     // it is not updated
+    packet->end_marker = PACKET_END_MARKER_VAL;
     handle->current_packet.slow = *packet;
     taskEXIT_CRITICAL();
 
@@ -288,10 +298,17 @@ floatsat_err_t Telemetry_AddDebug(telemetry_handle_t *handle, telemetry_packet_d
         return ERR_INVALID_ARG;
     }
 
+    if(!handle->bridge_active){
+        return ERR_RESOURCE_NOT_AVAILABLE;
+    }
+
+
     if(handle->packet_type_mask & PACKET_MASK_DEBUG){
         LOGW(LOG_TAG, "Warning: Last debug telemetry packet was not dispatched. "
             "Last packet will be dropped and will continue with the current one");
     }
+
+    packet->end_marker = PACKET_END_MARKER_VAL;
 
     taskENTER_CRITICAL(); 
     {
@@ -311,10 +328,16 @@ floatsat_err_t Telemetry_AddCommand(telemetry_handle_t *handle, telemetry_packet
         return ERR_INVALID_ARG;
     }
 
+    if(!handle->bridge_active){
+        return ERR_RESOURCE_NOT_AVAILABLE;
+    }
+
+
     if(handle->packet_type_mask & PACKET_MASK_DEBUG){
         LOGW(LOG_TAG, "Warning: Last CMD telemetry packet was not dispatched. "
             "Last packet will be dropped and will continue with the current one");
     }
+    packet->end_marker = PACKET_END_MARKER_VAL;
 
     taskENTER_CRITICAL();
     {
@@ -337,6 +360,11 @@ floatsat_err_t Telemetry_TakeInfoBuffer(telemetry_handle_t *handle, uint8_t **ou
     if(!handle || !out_ptr){
         return ERR_INVALID_ARG;
     }
+
+    if(!handle->bridge_active){
+        return ERR_RESOURCE_NOT_AVAILABLE;
+    }
+
 
     if(xSemaphoreTake(handle->info_semphr, 0U)){
         *out_ptr = info_buffer;
@@ -435,7 +463,8 @@ STATIC floatsat_err_t Telemetry_HandleInfo(telemetry_handle_t *handle)
             .type               = PACKET_TYPE_INFO_HEADER,
             .timestamp          = HAL_GetTick(),
             .nchunks            = (uint8_t)((last_chunk_size == 0U) ? len / INFO_CHUNK_DATA_SIZE : len / INFO_CHUNK_DATA_SIZE + 1U),
-            .last_chunk_size    = last_chunk_size
+            .last_chunk_size    = last_chunk_size,
+            .end_marker         = PACKET_END_MARKER_VAL
         };
 
         //TODO: Calculate CRC
@@ -467,27 +496,20 @@ STATIC floatsat_err_t Telemetry_HandleInfo(telemetry_handle_t *handle)
             info_packet_chunk_t chunk = {
                 .type = PACKET_TYPE_INFO_CHUNK,
                 .chunk_number = handle->chunk_index,
-                .data = &handle->info_buffer[handle->chunk_index * INFO_CHUNK_DATA_SIZE]
+                .end_marker = PACKET_END_MARKER_VAL
             };
+
+            uint16_t copy_len = (handle->chunk_index < handle->nchunks - 1) ? 
+                INFO_CHUNK_DATA_SIZE : handle->last_chunk_size;
+
+            memcpy(chunk.data ,&handle->info_buffer[handle->chunk_index * INFO_CHUNK_DATA_SIZE], copy_len);
             
-            // TODO: It would be better to just send the entire chunk in one go
-            // Send the chunk header
-            uint16_t tx_len = (handle->chunk_index < handle->nchunks - 1) ? INFO_CHUNK_DATA_SIZE: handle->last_chunk_size;
-            
+            // Send the chunk 
             handle->tx_busy = true;
             GOTO_ON_HAL_ERR(
-                HAL_UART_Transmit_DMA(handle->uart, (uint8_t*)&chunk, offsetof(info_packet_chunk_t, data)), 
+                HAL_UART_Transmit_DMA(handle->uart, (uint8_t*)&chunk, sizeof(info_packet_chunk_t)), 
                 err, ret);
             while(handle->tx_busy){;}
-
-            // Send the body
-            handle->tx_busy = true;
-            GOTO_ON_HAL_ERR(
-                HAL_UART_Transmit_DMA(handle->uart, chunk.data, tx_len), 
-                err, ret);
-            while(handle->tx_busy){;}
-            xTracePrintF(xStrTelemetry,"Sent chunk %u",handle->chunk_index);
-
 
             handle->chunk_index++;
 

@@ -5,6 +5,13 @@
 
 #include "floatsat_types.h"
 
+#if (UART_MODULE_VER == 1)
+/* @UART_RX_STATE */
+#define UART_RX_STATE_WAIT_HEADER   0
+#define UART_RX_STATE_WAIT_BODY     1
+#define UART_RX_STATE_RECOVERY      2
+
+
 static void UART_Task(void *params);
 
 static void handle_floatsat_telemetry(uart_module_handle_t *handle, size_t rx_len);
@@ -25,6 +32,10 @@ static const size_t packet_lengths[] = {
     [PACKET_TYPE_CMD]               3U
 };
 
+static debug_buffer_t dbg_buffer = {
+    .buffer_size = 32768U,
+    .send_on_full = false
+};
 
 esp_err_t UART_Init(uart_module_handle_t *handle)
 {
@@ -35,6 +46,8 @@ esp_err_t UART_Init(uart_module_handle_t *handle)
         ESP_LOGE(TAG,"Error initializing. NULL callbacks given");
     }
 
+    esp_err_t ret = DbgBuffer_Init(&dbg_buffer);
+    ESP_ERROR_CHECK(ret);
 
     ESP_LOGI(TAG,"Initializing UART!");
 
@@ -73,6 +86,8 @@ esp_err_t UART_Init(uart_module_handle_t *handle)
                 UART_TASK_PRIORITY, &handle->task_handle);
 
     ESP_LOGI(TAG,"UART Initialized!");
+
+ 
 
     return ESP_OK;
 }
@@ -119,6 +134,8 @@ static void UART_Task(void *params)
 
             case UART_FIFO_OVF:
                 uart_flush_input(handle->config.uart_port_num);
+                handle->rx_state = UART_RX_STATE_WAIT_HEADER;    
+                ESP_LOGE(TAG,"Buffer overflow!");
             default:
                 break;
             }
@@ -136,10 +153,17 @@ static void handle_floatsat_telemetry(uart_module_handle_t *handle, size_t rx_le
     // ESP_LOGI(TAG, "UART DATA event. rx_len=%u",rx_len);
     bool packet_pending = true; // Whether there are more bytes to read after receiving the current packet
     
+    DbgBuffer_Printf(&dbg_buffer, "================= UART DATA event. rx_len = %u =================\n",rx_len);
     while(packet_pending)
     {
         switch (handle->rx_state)
         {
+        case UART_RX_STATE_RECOVERY:
+            uart_recovery(handle, rx_len);
+            // if(handle->rx_state == UART_RXSTAT)
+
+            break;
+
         case UART_RX_STATE_WAIT_HEADER:
             memset(handle->rx_buffer, 0, handle->config.rx_buff_size);
             handle->rx_idx = 0U;
@@ -148,20 +172,22 @@ static void handle_floatsat_telemetry(uart_module_handle_t *handle, size_t rx_le
             uart_read_bytes(handle->config.uart_port_num, handle->rx_buffer, 1U, portMAX_DELAY);
             handle->current_packet_type = handle->rx_buffer[0];
 
-            // Validate packet type
+            // Invalid packet type
             if(handle->current_packet_type >= sizeof(packet_lengths) / sizeof(packet_lengths[0])){
                 // ESP_LOGE(TAG,"Invalid packet type: %u. rx_len = %lu",
                 //      handle->current_packet_type, rx_len);
-                memset(handle->rx_buffer,0,handle->config.rx_buff_size);
-                // uart_flush_input(handle->config.uart_port_num);
-                // vTaskDelay(1);
-                return;
+                // Try with the next byte
+                DbgBuffer_Printf(&dbg_buffer, "\t\tERROR: Invalid pakcet type 0x%02x\n", handle->current_packet_type);
+                handle->rx_state = UART_RX_STATE_RECOVERY;
+                handle->recovery_state = UART_RECOVERY_START;
+                uart_recovery(handle, rx_len - 1U);
             }
             
+
             handle->current_packet_bytes = packet_lengths[handle->current_packet_type] - 1U; //Subtract 1 because we already got the first byte
             handle->rx_state = UART_RX_STATE_WAIT_BODY;
             handle->rx_idx = 1U;
-            // printf("[TYPE = %u]\n",handle->current_packet_type);
+            DbgBuffer_Printf(&dbg_buffer, "\tGot packet type 0x%02x\n", handle->current_packet_type);
 
             // If the uart event length is 1, there are no more bytes to read. 
             // Otherwise, fall through to the UART_RX_STATE_WAIT_BODY case
@@ -179,6 +205,8 @@ static void handle_floatsat_telemetry(uart_module_handle_t *handle, size_t rx_le
                 break;
             }
             rx_len--; 
+            DbgBuffer_Printf(&dbg_buffer, "\trx_len = %u\n", rx_len);
+
             __attribute__((fallthrough));
 
         case UART_RX_STATE_WAIT_BODY:{
@@ -190,9 +218,13 @@ static void handle_floatsat_telemetry(uart_module_handle_t *handle, size_t rx_le
             if(handle->current_packet_type == PACKET_TYPE_INFO_CHUNK && 
                 handle->info_chunk_idx + 1U >= handle->info_chunks_to_wait)
             {
-                remaining = handle->last_chunk_size + 1U; // Add 1 to include the packet type byte
-                // printf("[Last chunk] Waiting %u bytes\n",remaining);
+                remaining = (rx_len <= handle->last_chunk_size + 1U) ? rx_len : handle->last_chunk_size + 1U; 
+
+                // Add 1 to include the packet type byte
+                DbgBuffer_Printf(&dbg_buffer, "\t\t[Last chunk] Waiting %u bytes\n",remaining);
             }
+
+            DbgBuffer_Printf(&dbg_buffer, "\t\tWaiting %u bytes\n",remaining);
             
             if(remaining < 0){
                 ESP_LOGE(TAG,"Error, invalid parser state!");
@@ -200,30 +232,20 @@ static void handle_floatsat_telemetry(uart_module_handle_t *handle, size_t rx_le
             }
 
             if(rx_len <= remaining){
-                // printf("rx_len <= remaining. (%u < %u). idx=%u\n",rx_len, remaining, handle->rx_idx);
+                // DbgBuffer_Printf(&dbg_buffer, "rx_len <= remaining. (%u < %u). idx=%u\n",rx_len, remaining, handle->rx_idx);
                 // Receiive bytes normally
                 uart_read_bytes(handle->config.uart_port_num, 
                     &handle->rx_buffer[handle->rx_idx], rx_len, portMAX_DELAY);
                     
                 handle->rx_idx += rx_len;
-
-                // static uint32_t dbg_count = 0U;
-                // if(++dbg_count >= 40 && handle->current_packet_type == PACKET_TYPE_FAST){
-                //     float speed = 0.0f;
-                //     printf("rx_len = %u, rx_idx = %u\n",rx_len, handle->rx_idx);
-                //     print_hex(handle->rx_buffer, handle->rx_idx);
-                //     printf("\n");
-                //     memcpy(&speed, (uint8_t*)(handle->rx_buffer + 21U),sizeof(float));
-                //     printf("RW: %.4f\n",speed);
-                //     dbg_count = 0U;
-                // }
-                
+                DbgBuffer_Printf(&dbg_buffer, "\t\tRead %u bytes. idx = %u\n", rx_len, handle->rx_idx);
                 // Is this right? Should we handle this in the else? It's almost the same code
                 if(remaining == rx_len){
                     // All bytes received
                     handle->rx_state = UART_RX_STATE_WAIT_HEADER;
                     packet_pending = false;
                     on_packet_rx_complete(handle);
+                    DbgBuffer_Printf(&dbg_buffer, "\t\tRX COMPLETE (remaining == rx_len)\n");
                 }
                 return; // Exit the function to wait for more bytes
                     
@@ -238,6 +260,7 @@ static void handle_floatsat_telemetry(uart_module_handle_t *handle, size_t rx_le
                 rx_len -= remaining;
                 handle->rx_idx += remaining;
 
+                DbgBuffer_Printf(&dbg_buffer, "\t\tRX COMPLETE (rx_len > remaining)\n");
                 on_packet_rx_complete(handle);
 
                 handle->rx_state = UART_RX_STATE_WAIT_HEADER;
@@ -251,7 +274,76 @@ static void handle_floatsat_telemetry(uart_module_handle_t *handle, size_t rx_le
         default:
             break;
         }
+    }
+
 }
+
+static void uart_recovery(uart_module_handle_t *handle, size_t rx_len)
+{
+    static size_t idx = 0U;
+    static size_t fast_packet_idx = 0U;
+    if(handle->recovery_state == UART_RECOVERY_START){
+        memset(handle->rx_buffer, 0, handle->config.rx_buff_size);
+        idx = 0U;
+        handle->rx_idx = 0U;
+        uart_read_bytes(handle->config.uart_port_num, handle->rx_buffer, rx_len, portMAX_DELAY);
+        handle->rx_idx += rx_len;
+        rx_len = 0U;
+        handle->recovery_state = UART_RECOVERY_WAITING_FAST;
+    }
+
+
+    while(idx < handle->rx_idx){
+        if(rx_len > 0U){
+            uart_read_bytes(handle->config.uart_port_num, &handle->rx_buffer[handle->rx_idx], rx_len, portMAX_DELAY);
+            handle->rx_idx += rx_len;
+            rx_len = 0U;
+        }
+
+        switch (handle->recovery_state)
+        {
+        case UART_RECOVERY_WAITING_FAST:
+            if(handle->rx_buffer[idx] == PACKET_TYPE_FAST){
+                fast_packet_idx = idx;
+                handle->recovery_state = UART_RECOVERY_WAITING_DEBUG;
+                __attribute__((fallthrough));
+            }else{
+                break;
+            }
+        
+        case UART_RECOVERY_WAITING_DEBUG:
+            // Check for a PACKET_TYPE_DEBUG byte 25 bytes after the fast telemetry header byte
+            if(idx + packet_lengths[PACKET_TYPE_FAST] > handle->rx_idx){
+                // We need to receive more bytes
+                return;
+        
+            }else{
+                if(handle->rx_buffer[idx + packet_lengths[PACKET_TYPE_FAST]] == PACKET_TYPE_DEBUG){
+                    // Found it.
+                    handle->rx_state = UART_RX_STATE_WAIT_BODY;
+                }else{
+                    handle->recovery_state = UART_RECOVERY_WAITING_FAST;
+                }
+            }
+            break;
+
+        default:
+            break;
+        }
+
+        
+        
+
+        idx++;
+    }
+
+
+    // Wait for a fast telemetry packet followed by a debug packet
+    uart_read_bytes(handle->config.uart_port_num, handle->rx_buffer, rx_len, portMAX_DELAY);
+    handle->rx_idx += rx_len;
+
+
+
 
 }
 
@@ -387,3 +479,4 @@ static void print_hex(uint8_t *buffer, size_t len)
 }
 
 #pragma endregion
+#endif

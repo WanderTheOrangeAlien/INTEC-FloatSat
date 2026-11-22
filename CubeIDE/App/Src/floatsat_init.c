@@ -61,10 +61,6 @@ static cmd_manager_handle_t cmd_manager = {
 /* -------------- Telemetry -------------- */
 static telemetry_handle_t telemetry_handle = {0};
 
-/* -------------- Madgwick filter -------------- */
-static madgwick_filter_t madgwick_filter = {0};
-
-
 
 /* -------------- Motor -------------- */
 static motor_handle_t motor_handle = {0};
@@ -104,6 +100,31 @@ static light_sensor_handle_t light_sensor = {
 };
 
 
+/* -------------- Madgwick filter -------------- */
+static madgwick_filter_t madgwick_filter = {0};
+
+#ifdef FUSION_H
+static FusionAhrs fusion_ahrs = {0};
+static FusionBias fusion_bias = {0};
+
+static const FusionAhrsSettings fusion_ahrs_settings = {
+    .sampleRate = 100.0f,
+    .convention = FusionConventionNwu,
+    .gain = 5.0f,
+    .gyroscopeRange = 0.0f,
+    .accelerationRejection = 00.0f,
+    .magneticRejection = 0.0f, // Leave this to 0.0f !
+    .rejectionTimeout = 5.0f,
+};
+
+static const FusionBiasSettings fusion_bias_settings = {
+    .stationaryPeriod = 3.0f,
+    .stationaryThreshold = 0.5f,
+    .sampleRate = (1000 /CONTROL_LOOP_PERIOD_MS)
+};
+
+#endif
+
 /* -------------- Core -------------- */
 static photo_info_t photo_arr[CORE_MAX_PHOTO_INSTRUCTIONS] = {0}; 
 static control_config_t g_control_config = {0};
@@ -119,6 +140,8 @@ static floatsat_core_t core_handle = {
     .data_bus_reader    = &core_data_bus_reader,
     .rtc                = &rtc_handle,
     .light_sensor       = &light_sensor,
+
+    .debug_id           = DEBUG_PACKET_ID_IMU,
 };
 
 
@@ -129,7 +152,13 @@ static control_handle_t control_handle = {
     .telemetry_handle   = &telemetry_handle,
     .motor              = &motor_handle,
     .g_control_config   = &g_control_config,
-    .p_core_task        = &core_handle.task_handle
+    .p_core_task        = &core_handle.task_handle,
+#ifdef FUSION_H
+    .fusion_ahrs            = &fusion_ahrs,
+    .fusion_ahrs_settings   = &fusion_ahrs_settings,
+    .fusion_bias            = &fusion_bias,
+    .fusion_bias_settings   = &fusion_bias_settings,
+#endif
 };
 
 
@@ -160,6 +189,12 @@ floatsat_err_t FloatSat_Init(const floatsat_periph_t *periph,
         return ERR_INVALID_STATE;
     }
     
+    // Reset the ESP32 to avoid bad boot due to slow power up ramp
+    HAL_GPIO_WritePin(periph->esp_en_port, periph->esp_en_pin, GPIO_PIN_RESET);
+    HAL_Delay(10);
+    HAL_GPIO_WritePin(periph->esp_en_port, periph->esp_en_pin, GPIO_PIN_SET);
+
+
     // Assign the peripheral and user config to each corresponding handle and then call each init function
 
 
@@ -209,8 +244,8 @@ floatsat_err_t FloatSat_Init(const floatsat_periph_t *periph,
     }
     multiplexer.i2c = periph->light_sensor_i2c;
 
-    GOTO_ON_ERR_LOG(LightSensor_Init(&light_sensor), err, ret,
-        LOG_TAG, "Error initializing light sensors. Error code: 0x%04x", ret);
+    // GOTO_ON_ERR_LOG(LightSensor_Init(&light_sensor), err, ret,
+    //     LOG_TAG, "Error initializing light sensors. Error code: 0x%04x", ret);
     
     /* ----------------------------- Core ----------------------------- */
     GOTO_ON_ERR_LOG(Core_Init(&core_handle), err, ret, 

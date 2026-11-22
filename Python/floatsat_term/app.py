@@ -101,7 +101,7 @@ class App:
 async def main(ip: str) -> int:
     uri = f"ws://{ip}/ws"
     try:
-        ws = await websockets.connect(uri, open_timeout=5)
+        ws = await websockets.connect(uri, open_timeout=10)
     except (OSError, TimeoutError, asyncio.TimeoutError,
             websockets.exceptions.WebSocketException) as e:
         # OSError: refused / unreachable / bad hostname
