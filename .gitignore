@@ -65,6 +65,9 @@ build/
 # STM32Cube
 Debug/
 
+#ESP32
+managed_components/
+
 # Other folders
 results/
 sdkconfig

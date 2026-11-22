@@ -72,6 +72,7 @@ static esp_err_t ws_on_connect(httpd_req_t *req)
         handle->clients[handle->n_clients].connected = true;
         // printf("req handle = 0x%8p. Handle's server handle: %8p\n",req->handle, handle->server_handle);
         printf("Added new client with flie descriptor: %d\n",handle->clients[handle->n_clients].fd);
+        xSemaphoreGive(handle->client_semphr);
 
     }else{
         ESP_LOGE(TAG,"%s: max clients reached. Current connection will be closed");
@@ -86,6 +87,8 @@ esp_err_t Websocket_Init(ws_handle_t *handle)
         return ESP_ERR_INVALID_ARG;
     }
  
+    handle->client_semphr = xSemaphoreCreateBinary();
+
     // Start the web server
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     esp_err_t ret = httpd_start(&handle->server_handle, &config);
@@ -97,12 +100,24 @@ esp_err_t Websocket_Init(ws_handle_t *handle)
     // Register uri handlers
     uri_websocket.user_ctx = (void*)handle;
     httpd_register_uri_handler(handle->server_handle, &uri_websocket);
-
-
     return ESP_OK;
 }
 
-/// @brief Sends data to the first client
+esp_err_t Websocket_WaitForClient(ws_handle_t *handle, size_t timeout_ticks)
+{
+    if(!handle){
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if(xSemaphoreTake(handle->client_semphr, timeout_ticks)){
+        return ESP_OK;
+    }else{
+        return ESP_ERR_TIMEOUT;
+    }
+}
+
+/// @brief Sends data to the first client. A copy of the buffer is created and then freed after the transmission is complete
+/// This is done because the websocket tranmission is asynchronous, so the function may return before the tranmission is complete
 /// @param handle Websocket module handle
 /// @param buffer message to send
 /// @param len Length of the message
@@ -134,7 +149,7 @@ esp_err_t Websocket_Send(ws_handle_t *handle, uint8_t *buffer, size_t len, httpd
     // If the ws send is not finished with the current contents and the payload and the uart overwrites the buffer
     // contents, we have a race condition. Consider copying. A memcyp of < 64 bytes is trivial
 
-    esp_err_t ret =httpd_ws_send_data_async(handle->server_handle, handle->clients[0].fd, 
+    esp_err_t ret = httpd_ws_send_data_async(handle->server_handle, handle->clients[0].fd, 
         &frame, on_ws_send_done, copy);
 
     if(ret != ESP_OK){
@@ -143,6 +158,42 @@ esp_err_t Websocket_Send(ws_handle_t *handle, uint8_t *buffer, size_t len, httpd
     }
 
     return ESP_OK;
+}
+
+
+/// @brief Sends data without making a copy of the buffer. This is best for large synchronous transfers
+/// In such case, use the callback for handling your synchronization logic (semaphore, notification, etc.) 
+/// @param handle 
+/// @param buffer 
+/// @param len 
+/// @param type 
+/// @param callback 
+/// @param args 
+/// @return 
+esp_err_t Websocket_SendNoCopy(ws_handle_t *handle, 
+                                uint8_t *buffer, size_t len, 
+                                httpd_ws_type_t type,
+                                transfer_complete_cb callback, void *args)
+{
+    if(!handle || !buffer){
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    if(!handle->clients[0].connected){
+        // ESP_LOGE(TAG,"Tried to send, but no client connected");
+        return ESP_FAIL;
+    }
+
+    httpd_ws_frame_t frame = {
+        .len = len,
+        .payload = buffer,
+        .type = type
+    };
+
+    esp_err_t ret = httpd_ws_send_data_async(handle->server_handle, handle->clients[0].fd,
+        &frame, callback, args);
+
+    return ret;
 }
 
 

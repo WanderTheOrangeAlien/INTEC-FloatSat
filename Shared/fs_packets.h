@@ -12,6 +12,8 @@
 #define PACKET_TYPE_INFO_CHUNK      0x03
 #define PACKET_TYPE_DEBUG           0x04
 #define PACKET_TYPE_CMD             0x05
+#define PACKET_TYPE_CAMERA_HEADER   0x06
+#define PACKET_TYPE_CAMERA_CHUNK    0x07
 
 
 #define DEBUG_PACKET_ID_NONE        0x00
@@ -83,6 +85,24 @@ typedef struct __attribute__((packed)) info_packet_chunk_t {
     uint16_t end_marker;
 
 }info_packet_chunk_t;
+
+
+typedef struct __attribute__((packed)) camera_packet_header_t {
+    uint8_t type;
+    uint8_t nchunks;
+    uint16_t timeout_ms; // Maximum time between two consecutive chunks
+}camera_packet_header_t;
+
+
+typedef struct __attribute__((packed)) camera_packet_chunk_t {
+
+    uint8_t type;
+    uint8_t index;
+    uint16_t len;
+    uint8_t *data; // Array of size len
+ 
+}camera_packet_chunk_t;
+
 
 
 #define PACKET_LEN_FAST             (offsetof(telemetry_packet_t, fast) + sizeof(telemetry_packet_fast_t))

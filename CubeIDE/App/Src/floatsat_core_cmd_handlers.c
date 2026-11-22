@@ -379,6 +379,11 @@ floatsat_err_t Core_Sysctl(floatsat_core_t *handle, floatsat_cmd_t *cmd)
 
     }
 
+    if(cmd->sysctl_args.action_flags & CMD_SYSCTL_FLAG_SET_RTC){
+        RTC_SetTimeDate(handle->rtc, &cmd->sysctl_args.rtc_time, &cmd->sysctl_args.rtc_date);        
+        LOGI(LOG_TAG, "Updated RTC");
+    }
+
     return ERR_OK;
 }
 

@@ -17,9 +17,6 @@ typedef struct ws_client_t {
     bool connected;
 }ws_client_t;
 
-typedef struct websocket_config_t{
-    
-}websocket_config_t;
 
 typedef struct ws_handle_t {
     httpd_handle_t server_handle;
@@ -29,11 +26,18 @@ typedef struct ws_handle_t {
 
     ws_on_rx_callback_t on_rx; 
 
+    SemaphoreHandle_t   client_semphr;
+
 }ws_handle_t;
 
 
 
 esp_err_t Websocket_Init(ws_handle_t *handle);
+esp_err_t Websocket_WaitForClient(ws_handle_t *handle, size_t timeout_ticks);
 esp_err_t Websocket_Send(ws_handle_t *handle, uint8_t *buffer, size_t len, httpd_ws_type_t type);
+esp_err_t Websocket_SendNoCopy(ws_handle_t *handle, 
+                                uint8_t *buffer, size_t len, 
+                                httpd_ws_type_t type,
+                                transfer_complete_cb callback, void *args);
 
 #endif

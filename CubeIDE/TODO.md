@@ -55,22 +55,26 @@ We need to perform the following activities
 
 ___
 
-- Update the specs to match the firmware changes (new commands, photo now uses the amount of photos instead of duration, changed telemetry packets)
-- Failing to init one single module halts the floatsat. Have a more graceful error handling. 
-- Add a command to set the RTC time and date
-- Add the magnetometer calibration at startup
+
 
 - IMPORTANT: Give the telemetry packets a 2-byte end delimiter so that the ESP32 can re-sync in the case of an invalid packet type detected **DONE**
 
 - Add failsafe for angular velocity crossing a thereshold
-- Add anti-windup for the control loop integral
+- Add anti-windup for the control loop integral **DONE** (Used Madgwick's fusion library)
 - Add movement checks during gyro calibration
 
 - Make ESP32 comms robust (consider reading everything into a buffer and parse it asynchrnously, because receiving, parsing and waiting is too prone to error) **DONE**
 
-- We can't access the webserver after a cold start. (When we power on the system, we have to later restart the ESP32 for it to work) Look into that. **NEXT**
+- We can't access the webserver after a cold start. (When we power on the system, we have to later restart the ESP32 for it to work) Look into that. **DONE**
 
-- Turn the ESP32 into a wifi access point and give it a URL so we can access it without the IP
+*NEXT*
+- Update the specs to match the firmware changes (new commands, photo now uses the amount of photos instead of duration, changed telemetry packets)
+- Failing to init one single module halts the floatsat. Have a more graceful error handling. 
+- Add a command to set the RTC time and date **DONE**
+
+- Turn the ESP32 into a wifi access point and give it a URL so we can access it without the IP **DONE**
+
+- Implement sending an JPEG image through websocket. **DONE**
 
 
 ## DEMO 1: Simple PID control

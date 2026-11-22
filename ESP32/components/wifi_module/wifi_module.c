@@ -56,7 +56,38 @@ static esp_err_t wifi_init_ap(wifi_module_config_t *config)
     if(!config){
         return ESP_ERR_INVALID_ARG;   
     }
+    esp_err_t ret = ESP_OK;
+    s_wifi_event_group = xEventGroupCreate();
 
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+    esp_netif_create_default_wifi_ap();
+
+    wifi_init_config_t init_cfg = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&init_cfg));
+
+    // Register even handlers here if needed
+
+
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+
+
+    wifi_config_t wifi_config = {
+        .ap = {
+            .authmode       = WIFI_AUTH_WPA2_PSK,
+            .ssid_len       = strlen(config->ssid),
+            .max_connection = WIFI_AP_MAX_STATIONS,
+            .pmf_cfg = {
+                .required = false
+            },
+        }
+    };
+    strncpy((char*)&wifi_config.sta.ssid, (char*)config->ssid, sizeof(wifi_config.sta.ssid));
+    strncpy((char*)&wifi_config.sta.password, (char*)config->password, sizeof(wifi_config.sta.password));
+
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config));
+
+    ESP_ERROR_CHECK(esp_wifi_start());
 
     return ESP_OK;
 }

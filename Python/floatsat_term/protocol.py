@@ -16,6 +16,8 @@ class PacketType(IntEnum):
     FAST = 0
     SLOW = 1
     DEBUG = 4
+    CAMERA_HEADER = 6
+    CAMERA_CHUNK = 7
 
 
 class DebugId(IntEnum):        # DEBUG_PACKET_ID_* in Shared/fs_packets.h
@@ -65,6 +67,19 @@ class RtcDebug:                 # telemetry_packet_debug_t with debug_id = RTC
     seconds: int
 
 
+@dataclass(frozen=True)
+class CameraHeader:             # camera_packet_header_t
+    nchunks: int
+    timeout_ms: int             # max time between two consecutive chunks
+
+
+@dataclass(frozen=True)
+class CameraChunk:              # camera_packet_chunk_t
+    index: int
+    length: int                 # the len field, as sent
+    data: bytes                 # the bytes after the chunk header, at most `length`
+
+
 class PacketError(Exception):
     """A binary frame that doesn't match any known packet layout."""
 
@@ -84,6 +99,26 @@ _DEBUG_HEADER = struct.Struct("<BB")     # type, debug_id
 _IMU = struct.Struct("<Q9f")              # IMU_data_t: timestamp, accel, gyro, mag
 _CONTROL = struct.Struct("<Q6f")         # control_data_t: timestamp, angle, angle_ref, w, w_ref, pwm_out, rw_speed
 _RTC = struct.Struct("<Q3B")             # floatsat_time_t: timestamp, hours, minutes, seconds
+
+
+# Camera packets have no end marker. The chunk header is followed by `len`
+# bytes of JPEG data (the `uint8_t *data` member is not sent).
+_CAMERA_HEADER = struct.Struct("<BBH")   # type, nchunks, timeout_ms
+_CAMERA_CHUNK = struct.Struct("<BBH")    # type, index, len (then the data)
+
+
+def _parse_camera_header(data: bytes) -> CameraHeader:
+    if len(data) != _CAMERA_HEADER.size:
+        raise PacketError(f"camera header: {len(data)} bytes, expected {_CAMERA_HEADER.size}")
+    _, nchunks, timeout_ms = _CAMERA_HEADER.unpack(data)
+    return CameraHeader(nchunks, timeout_ms)
+
+
+def _parse_camera_chunk(data: bytes) -> CameraChunk:
+    if len(data) < _CAMERA_CHUNK.size:
+        raise PacketError(f"camera chunk: only {len(data)} bytes")
+    _, index, length = _CAMERA_CHUNK.unpack_from(data)
+    return CameraChunk(index, length, bytes(data[_CAMERA_CHUNK.size:_CAMERA_CHUNK.size + length]))
 
 
 def _parse_fast(data: bytes) -> FastTelemetry:
@@ -139,11 +174,19 @@ _PARSERS = {
     PacketType.DEBUG: _parse_debug,
 }
 
+# packet types that carry no end marker
+_NO_END_MARKER = {
+    PacketType.CAMERA_HEADER: _parse_camera_header,
+    PacketType.CAMERA_CHUNK: _parse_camera_chunk,
+}
+
 
 def parse_packet(data: bytes):
     """Decode one binary frame into a packet object, or raise PacketError."""
     if not data:
         raise PacketError("empty binary frame")
+    if data[0] in _NO_END_MARKER:
+        return _NO_END_MARKER[data[0]](data)
     parser = _PARSERS.get(data[0])
     if parser is None:
         raise PacketError(f"unknown packet type {data[0]}")

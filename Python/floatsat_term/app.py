@@ -3,21 +3,40 @@ import asyncio
 import signal
 
 import websockets
+import websockets.exceptions
 
+from .camera import CameraReceiver
 from .console import PROMPT, Console
 from .link import Link
 from .procedures import PROCEDURES
 from .view import STATUS_ROWS, show_packet
 
 
+# Reconnection. The library pings the ESP32 every PING_INTERVAL_S; if no pong
+# comes back within PING_TIMEOUT_S the link counts as lost, after waiting up to
+# CLOSE_TIMEOUT_S for a closing handshake. That catches an ESP32 that reset or
+# left WiFi without closing the socket, in about 5 + 5 + 2 = 12 s at worst.
+RETRY_DELAY_S = 2.0
+OPEN_TIMEOUT_S = 5.0
+PING_INTERVAL_S = 5.0
+PING_TIMEOUT_S = 5.0
+CLOSE_TIMEOUT_S = 2.0
+
+_CONNECT_ERRORS = (OSError, TimeoutError, asyncio.TimeoutError,
+                   websockets.exceptions.WebSocketException)
+
+
 class App:
-    def __init__(self, ws, console: Console):
+    def __init__(self, uri: str, console: Console):
+        self.uri = uri
         self.console = console
-        self.link = Link(ws,
-                         on_packet=lambda packet: show_packet(console, packet),
-                         on_text=console.info,
-                         on_warning=lambda msg: console.info(f"[warn] {msg}"))
+        self.camera = CameraReceiver(console.info)
+        self.link: Link | None = None       # None while disconnected
         self.procedure: asyncio.Task | None = None
+
+    def _on_packet(self, packet):
+        show_packet(self.console, packet)
+        self.camera.handle(packet)
 
     @property
     def procedure_running(self) -> bool:
@@ -32,6 +51,8 @@ class App:
         self.console.info(f"{PROMPT}{line}")      # keep a record of what was typed
 
         match words:
+            case ["test", name] if name in PROCEDURES and self.link is None:
+                self.console.info("not connected, test not started")
             case ["test", name] if name in PROCEDURES:
                 self.start_procedure(name)
             case ["test", *_]:
@@ -44,8 +65,13 @@ class App:
             case _ if self.procedure_running:
                 # keep the test's measurements clean
                 self.console.info("a test is running, type 'abort' to stop it first")
+            case _ if self.link is None:
+                self.console.info("not connected, command not sent")
             case _:
-                await self.link.send_command(line)
+                try:
+                    await self.link.send_command(line)
+                except websockets.exceptions.ConnectionClosed:
+                    self.console.info("connection lost, command not sent")
 
     # ---- procedures -------------------------------------------------------
 
@@ -57,6 +83,8 @@ class App:
 
     async def _run_procedure(self, name: str):
         try:
+            # a test is bound to the link it started on; if that link drops,
+            # the test is cancelled (see _connection_loop)
             await PROCEDURES[name](self.link, self.console.info)
         except asyncio.CancelledError:
             pass                            # aborted; the procedure already said so
@@ -69,24 +97,63 @@ class App:
             self.procedure.cancel()
             await asyncio.gather(self.procedure, return_exceptions=True)
 
+    # ---- connection -------------------------------------------------------
+
+    async def _connect(self):
+        """Try until a connection opens. Reports the first failure only."""
+        failures = 0
+        while True:
+            try:
+                return await websockets.connect(self.uri,
+                                                open_timeout=OPEN_TIMEOUT_S,
+                                                ping_interval=PING_INTERVAL_S,
+                                                ping_timeout=PING_TIMEOUT_S,
+                                                close_timeout=CLOSE_TIMEOUT_S)
+            except _CONNECT_ERRORS as e:
+                # OSError: refused / unreachable / bad hostname
+                # TimeoutError: nothing answered within OPEN_TIMEOUT_S
+                # WebSocketException: something answered, but not a websocket at /ws
+                if failures == 0:
+                    self.console.info(f"Could not connect to {self.uri}: {type(e).__name__}: {e}. "
+                                      f"Retrying every {RETRY_DELAY_S:g} s...")
+                failures += 1
+                await asyncio.sleep(RETRY_DELAY_S)
+
+    async def _connection_loop(self):
+        """Connect, receive until the link drops, repeat. Runs until cancelled."""
+        while True:
+            ws = await self._connect()
+            self.console.info(f"Connected to {self.uri}")
+            self.link = Link(ws,
+                             on_packet=self._on_packet,
+                             on_text=self.console.info,
+                             on_warning=lambda msg: self.console.info(f"[warn] {msg}"))
+            try:
+                await self.link.run()
+            finally:
+                self.link = None
+                await ws.close()
+            if self.procedure_running:
+                self.console.info("connection lost, aborting the running test")
+                await self.stop_procedure()
+            self.console.info(f"Disconnected. Reconnecting to {self.uri}...")
+
     # ---- main loop ----------------------------------------------------------
 
     async def _command_loop(self, queue: asyncio.Queue):
-        try:
-            while (line := await queue.get()) is not None:     # None = Ctrl+D
-                await self.handle_line(line)
-        except websockets.exceptions.ConnectionClosed:
-            pass
+        while (line := await queue.get()) is not None:     # None = Ctrl+D
+            await self.handle_line(line)
 
     async def run(self):
         queue = asyncio.Queue()
         self.console.start_input(asyncio.get_running_loop(), queue)
         tasks = {
-            asyncio.create_task(self.link.run()),
+            asyncio.create_task(self._connection_loop()),
             asyncio.create_task(self._command_loop(queue)),
         }
         try:
-            # whichever ends first (server closed, or Ctrl+D) ends the session
+            # the connection loop never ends on its own, so this waits for Ctrl+D
+            # (or an unexpected error in either task)
             done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
         finally:
             # also runs on Ctrl+C: a running test still gets to stop the motor
@@ -100,27 +167,15 @@ class App:
 
 async def main(ip: str) -> int:
     uri = f"ws://{ip}/ws"
-    try:
-        ws = await websockets.connect(uri, open_timeout=10)
-    except (OSError, TimeoutError, asyncio.TimeoutError,
-            websockets.exceptions.WebSocketException) as e:
-        # OSError: refused / unreachable / bad hostname
-        # TimeoutError: nothing answered within open_timeout
-        # WebSocketException: something answered, but not a websocket at /ws (or bad URI)
-        print(f"Could not open a WebSocket at {uri}: {type(e).__name__}: {e}")
-        return 1
-
     console = Console(STATUS_ROWS)
     console.start()
     try:
-        console.info(f"Connected to {uri}  (Ctrl+D or Ctrl+C to quit)")
+        console.info(f"Connecting to {uri}  (Ctrl+D or Ctrl+C to quit)")
         loop = asyncio.get_running_loop()
         if hasattr(signal, "SIGWINCH"):
             loop.add_signal_handler(signal.SIGWINCH, console.resize)
 
-        await App(ws, console).run()
-        console.info("Disconnected")
+        await App(uri, console).run()
     finally:
         console.stop()
-        await ws.close()
     return 0

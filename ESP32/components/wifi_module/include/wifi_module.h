@@ -20,6 +20,8 @@
 
 #define WIFI_MAX_RETRY_NUM      20
 
+#define WIFI_AP_MAX_STATIONS    5U
+
 typedef struct wifi_module_config_t {
     const char *ssid;
     const char *password;

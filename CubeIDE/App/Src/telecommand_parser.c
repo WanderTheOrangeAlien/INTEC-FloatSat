@@ -803,8 +803,16 @@ static floatsat_err_t parse_cmd_system(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
                 return ERR_INVALID_CMD;
             }
 
-            cmd->sysctl_args.action_flags |= CMD_SYSCTL_FLAG_SET_RTC;
-            Time_ParseTimeDateString(argtable_system.set_rtc->sval[0], &cmd->sysctl_args.rtc_time, &cmd->sysctl_args.rtc_date);
+            floatsat_err_t ret =
+                Time_ParseTimeDateString(argtable_system.set_rtc->sval[0], 
+                                            &cmd->sysctl_args.rtc_time, 
+                                            &cmd->sysctl_args.rtc_date);
+            if(ret == ERR_OK){
+                cmd->sysctl_args.action_flags |= CMD_SYSCTL_FLAG_SET_RTC;
+            }else{
+                return ERR_INVALID_CMD;
+            }
+            
 
 
         }

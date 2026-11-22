@@ -200,20 +200,29 @@ floatsat_err_t Time_ParseTimeDateString(const char *buffer, floatsat_time_t *tim
     if(!buffer || !time || !date){
         return ERR_INVALID_ARG;
     }
-
+    floatsat_err_t ret = ERR_OK;
     // Expected format: MM/dd/yy hh:mm:ss
 
     // Find the space
     char date_str[16] = {0}; 
     const char *p = strchr(buffer, ' ');
     if(!p){
-        return ERR_INVALID_ARG;
+        ret = ERR_INVALID_ARG;
+        goto err;
     }
 
     memcpy(date_str, buffer, (size_t)(p - buffer));
 
+    GOTO_ON_ERR(Time_ParseDateString(date_str, date), err, ret);
+    GOTO_ON_ERR(Time_ParseString((const char*)(p + 1U), time), err, ret);
 
     return ERR_OK;
+
+err:
+    memset(date, 0, sizeof(floatsat_date_t));
+    memset(time, 0, sizeof(floatsat_time_t));
+    return ret;
+
 }
 
 /// @brief Compares two time structures

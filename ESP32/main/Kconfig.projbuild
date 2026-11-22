@@ -1,8 +1,29 @@
-menu "Wifi credentials"
-config WIFI_SSID
-    string "Wifi SSID"
+menu "WiFi module"
 
-config WIFI_PASSWORD
-    string "Wifi Password"
-    
+    choice WIFI_MODULE_MODE
+        prompt "WiFi mode"
+        default WIFI_MODULE_MODE_STA
+
+        config WIFI_MODULE_MODE_STA
+            bool "Station"
+        config WIFI_MODULE_MODE_AP
+            bool "Access point"
+    endchoice
+
+    config STA_WIFI_SSID
+        string "STA SSID"
+        depends on WIFI_MODULE_MODE_STA
+    config STA_WIFI_PASSWORD
+        string "STA password"
+        depends on WIFI_MODULE_MODE_STA
+
+    config AP_WIFI_SSID
+        string "AP SSID"
+        default "INTEC-FloatSat"
+        depends on WIFI_MODULE_MODE_AP
+    config AP_WIFI_PASSWORD
+        string "AP password"
+        default "HereBeDragons"
+        depends on WIFI_MODULE_MODE_AP
+
 endmenu

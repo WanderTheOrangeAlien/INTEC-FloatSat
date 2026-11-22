@@ -5,18 +5,30 @@
 #include "uart_module.h"
 #include "websocket_module.h"
 #include "project_defs.h"
-#include "camera_module.h"
 #include "fs_packets.h"
+#include "mdns.h"
+
+// #include "Arducam_OV2640.h"
 
 // #define WIFI_DISABLE    1
+
+
+
+#define ESP_WIFI_MODE WIFI_MODE_AP
+
+extern const uint8_t img1_jpg_start[]    asm("_binary_img1_jpg_start");
+extern const uint8_t img1_jpg_end[]      asm("_binary_img1_jpg_end");
+
 
 static esp_err_t on_ws_rx(uint8_t *buffer, size_t len);
 static void on_uart_rx(uint8_t *buffer, size_t len, uint8_t packet_type);
 static void on_uart_info(uint8_t *info_buffer, size_t len);
-static void print_str_with_hex(char buffer[], size_t len);
 
 static void handle_esp_command(esp_cmd_t *cmd);
+static void Camera_Task(void *params);
+static void on_camera_chunk_send(esp_err_t err, int socket, void *arg);
 
+static void print_str_with_hex(char buffer[], size_t len);
 static void print_hex(uint8_t *buffer, size_t len);
 
 static const char LOG_TAG[] = "MAIN";
@@ -24,10 +36,17 @@ static const char LOG_TAG[] = "MAIN";
 static volatile bool initialized = false;
 
 static wifi_module_config_t wifi_config = {
-    .ssid       = CONFIG_WIFI_SSID,
-    .password   = CONFIG_WIFI_PASSWORD,
-
-    .wifi_mode  = WIFI_MODE_STA
+#if defined(CONFIG_WIFI_MODULE_MODE_STA)
+    .ssid      = CONFIG_STA_WIFI_SSID,
+    .password  = CONFIG_STA_WIFI_PASSWORD,
+    .wifi_mode = WIFI_MODE_STA,
+#elif defined(CONFIG_WIFI_MODULE_MODE_AP)
+    .ssid      = CONFIG_AP_WIFI_SSID,
+    .password  = CONFIG_AP_WIFI_PASSWORD,
+    .wifi_mode = WIFI_MODE_AP,
+#else
+#error "No WiFi mode selected"
+#endif
 };
 
 static uart_module_handle_t uart_handle = {
@@ -53,10 +72,28 @@ static uart_module_handle_t uart_handle = {
     }
 };
 
-uint8_t frame_buffer[4096] = {0};
-static camera_handle_t camera_handle = {
-    .frame_buffer = frame_buffer
+#ifdef ARDUCAM_OV2640_H
+ov2640_handle_t camera = {
+    .i2c_config = {
+        .clk_freq_hz        =   CAMERA_I2C_CLK_FREQ,
+        .i2c_port           =   CAMERA_I2C_PORT,
+        .pin_scl            =   CAMERA_I2C_PIN_SCL,
+        .pin_sda            =   CAMERA_I2C_PIN_SDA, 
+        .timeout_ms         =   CAMERA_I2C_TIMEOUT_MS,
+    },
+    .spi_config = {
+        .pin_miso           =   CAMERA_SPI_PIN_MISO,
+        .pin_mosi           =   CAMERA_SPI_PIN_MOSI,
+        .pin_sclk           =   CAMERA_SPI_PIN_SCLK,
+        .pin_cs             =   CAMERA_SPI_PIN_CS,
+        .max_transfer_size  =   CAMERA_CHUNK_SIZE,
+        .queue_size         =   CAMERA_SPI_QUEUE_SIZE,
+        .host               =   CAMERA_SPI_HOST
+    }
 };
+#endif
+TaskHandle_t camera_task_handle = NULL;
+SemaphoreHandle_t camera_read_semphr = NULL;
 
 static ws_handle_t ws_handle = {
     .on_rx = on_ws_rx
@@ -119,29 +156,177 @@ static void handle_esp_command(esp_cmd_t *cmd)
     ESP_LOGI(LOG_TAG,"Received command {ID: 0x%02x. Amount: %u}.",
         cmd->cmd_id,cmd->args.photo_amount);
 
+    if(!initialized){
+        ESP_LOGE(LOG_TAG,"Error: Bridge not initialized");
+        return;
+    }
+
     if(cmd->cmd_id == EXT_CMD_TAKE_PHOTO){
         ESP_LOGI(LOG_TAG,"Taking %u photos...",cmd->args.photo_amount);
 
-        // IMPORTANT: Remember that this runs from the on_uart_rx callback
-        // Defer taking the photo to a separate task
+        xTaskNotifyGive(camera_task_handle);
+    }
 
-        // TODO: Move this code to the task that will take the photo
+}
+
+static void Camera_Task(void *params)
+{
+    (void)params;
+    uint8_t *chunk_buffer = NULL;
+    size_t chunk_idx = 0U, remaining = 0U, xfer_len = 0U;
+    size_t loop_iters = 0U;
+
+    esp_err_t ret = ESP_OK;
+
+    chunk_buffer = heap_caps_aligned_calloc(sizeof(uint32_t), 
+                                            1U, 
+                                            CAMERA_CHUNK_SIZE + offsetof(camera_packet_chunk_t, data), 
+                                            MALLOC_CAP_DMA);
+    if(!chunk_buffer){
+        ESP_LOGE(LOG_TAG, "Error allocating camera chunk buffer!");
+        while(1){
+            vTaskDelay(10);
+        }
+    }
+
+    while(1){
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        
+#ifdef ARDUCAM_OV2640_H
+        ret = OV2640_Capture(&camera, &remaining);
+        if(ret != ESP_OK){
+            ESP_LOGE(LOG_TAG,"(Camera Task) Camera capture failed");
+            goto err;
+        }
+#else
+        remaining = (size_t)(img1_jpg_end - img1_jpg_start);
+#endif
+    
+        chunk_idx = 0U;
+        loop_iters = 0U;
+
+        // Send the header
+        camera_packet_header_t header = {
+            .type       = PACKET_TYPE_CAMERA_HEADER,
+            .nchunks    = (remaining % CAMERA_CHUNK_SIZE == 0) ?
+                            remaining / CAMERA_CHUNK_SIZE:
+                            remaining / CAMERA_CHUNK_SIZE + 1,            
+            .timeout_ms = CAMERA_CHUNK_TIMEOUT_MS,
+        };
+
+        Websocket_Send(&ws_handle, (uint8_t*)&header, sizeof(header), HTTPD_WS_TYPE_BINARY);
+
+        while(remaining > 0U && ++loop_iters <= CAMERA_READ_MAX_LOOP_ITERS){
+
+            xfer_len = (remaining >= CAMERA_CHUNK_SIZE) ? CAMERA_CHUNK_SIZE : remaining;
+
+#ifdef ARDUCAM_OV2640_H
+            // Read image data and store it after the chunk header
+            ret = OV2640_ReadChunk( &camera, 
+                                    &chunk_buffer[offsetof(camera_packet_chunk_t, data)], 
+                                    xfer_len, &remaining);
+            if(ret != ESP_OK){
+                ESP_LOGE(LOG_TAG,"(Camera Task) Error in chunk #%u", chunk_idx);
+                goto err;
+            }
+#else
+            memcpy( &chunk_buffer[offsetof(camera_packet_chunk_t, data)], 
+                    &img1_jpg_start[CAMERA_CHUNK_SIZE * chunk_idx],
+                     xfer_len);
+            remaining -= xfer_len;     
+#endif            
+            // Create the chunk header
+            camera_packet_chunk_t chunk_header = {
+                .type   = PACKET_TYPE_CAMERA_CHUNK,
+                .index  = chunk_idx,
+                .len    = xfer_len,
+            };
+            // Copy the header at the start of the buffer
+            memcpy(chunk_buffer, &chunk_header, offsetof(camera_packet_chunk_t, data));
+
+            // The callback releases the semaphore
+            ret = Websocket_SendNoCopy(&ws_handle, 
+                                 chunk_buffer, xfer_len + offsetof(camera_packet_chunk_t, data), 
+                                 HTTPD_WS_TYPE_BINARY,
+                                 on_camera_chunk_send, camera_read_semphr);
+            
+            if(ret != ESP_OK){
+                ESP_LOGE(LOG_TAG,"(Camera Task) Error sending chunk #%u", chunk_idx);
+                goto err;
+            }
+
+
+            // Wait for the sempahore to be available
+            if(xSemaphoreTake(camera_read_semphr, pdMS_TO_TICKS(CAMERA_CHUNK_TIMEOUT_MS))){
+                ++chunk_idx;
+            }else{
+                ESP_LOGE(LOG_TAG,"(Camera Task) Error sending chunk #%u  (Sempahore Timeout)", chunk_idx);
+                goto err;
+            }
+            
+            
+        }
+
+        if(loop_iters >= CAMERA_READ_MAX_LOOP_ITERS){
+            ESP_LOGE(LOG_TAG,"(Camera Task) Max loop iterations reached!");
+            goto err;
+        }
+
         UART_SendFloatsatCmd(&uart_handle, "sys --invoke-cb on_photo_finish");
         ESP_LOGI(LOG_TAG,"Photo finished!");
+        continue;
+    err:
+        chunk_idx = 0U;
+        remaining = 0U;
+        UART_SendFloatsatCmd(&uart_handle, "sys --invoke-cb on_photo_fail");
+        ESP_LOGE(LOG_TAG,"Photo failed!");
 
 
     }
 
 }
 
+static void on_camera_chunk_send(esp_err_t err, int socket, void *arg)
+{
+    (void)err;
+    (void)socket;
+    SemaphoreHandle_t semphr = (SemaphoreHandle_t)arg;
+
+    xSemaphoreGive(semphr);
+}
+
+void start_mdns(void)
+{
+    ESP_ERROR_CHECK(mdns_init());
+    ESP_ERROR_CHECK(mdns_hostname_set("floatsat"));
+    ESP_ERROR_CHECK(mdns_instance_name_set("INTEC FloatSat"));
+
+}
+
 void app_main(void)
 {
+    // Check that the camera chunk packet has a header which size if a multiple of 4
+    // So the buffer is 4-byte aligned
+    static_assert(  (offsetof(camera_packet_chunk_t, data) % 4U) == 0 );
+
     ESP_ERROR_CHECK(UART_Init(&uart_handle));
-    ESP_ERROR_CHECK(Camera_Init(&camera_handle));
-    
-    #ifndef WIFI_DISABLE
+
+#ifdef ARDUCAM_OV2640_H
+    ESP_ERROR_CHECK(OV2640_Init(&camera));
+#endif
+    camera_read_semphr = xSemaphoreCreateBinary();
+    xTaskCreate(Camera_Task, "CAMERA", CAMERA_TASK_STACK_SIZE, NULL, CAMERA_TASK_PRIO, &camera_task_handle);
+
+#ifndef WIFI_DISABLE
     ESP_ERROR_CHECK(Wifi_Init(&wifi_config));
+    if(wifi_config.wifi_mode == WIFI_MODE_AP){
+        start_mdns();
+    }
+
     ESP_ERROR_CHECK(Websocket_Init(&ws_handle));
+
+    Websocket_WaitForClient(&ws_handle, portMAX_DELAY);
+
     initialized = true;
     UART_SendFloatsatCmd(&uart_handle, "sys --invoke-cb on_bridge_active");
 #endif
