@@ -7,16 +7,19 @@
 
 
 static floatsat_err_t Core_HandleCmd(floatsat_core_t *handle, floatsat_cmd_t *cmd);
+static floatsat_err_t Core_ChangeMission(floatsat_core_t *handle);
 
 static floatsat_err_t Core_Mission_Playground(floatsat_core_t *handle);
 
 static floatsat_err_t Core_Update(floatsat_core_t *handle);
+static floatsat_err_t Core_UpdateActions(floatsat_core_t *handle);
 static floatsat_err_t Core_DebugUpdate(floatsat_core_t *handle);
 static floatsat_err_t Core_SendDebug(floatsat_core_t *handle);
 
 static floatsat_err_t Core_UpdatePhotoAlarm(floatsat_core_t *handle);
 static void Core_OnPhotoAlarm(rtc_handle_t *rtc);
 static void Core_OnPhotoFinish(floatsat_core_t *handle);
+static void Core_OnPhotoFail(floatsat_core_t *handle);
 static floatsat_err_t get_next_photo_index(const floatsat_core_t *handle, int *index);
 
 static floatsat_err_t Core_TakePhoto(floatsat_core_t *handle);
@@ -37,6 +40,8 @@ floatsat_err_t Core_Init(floatsat_core_t *handle)
     floatsat_err_t ret = ERR_OK;
 
     GOTO_ON_ERR(DataBus_InitReader(handle->data_bus_reader), err, ret);
+
+    handle->photo_deadline_tick = portMAX_DELAY;
 
     LOGI(LOG_TAG,"Initialization succesful");
     return ERR_OK;
@@ -78,18 +83,48 @@ void Task_CoreFn(void *args)
             Core_HandleCmd(handle, &handle->current_cmd);
         }
 
-        // If the commmand requested an action, perform it at the end
-        if(handle->action_flags != 0U){
-            Core_Update(handle);
-        }
+
+        Core_Update(handle);
+
 
         Core_SendDebug(handle);
 
     }
 }
 
-
 static floatsat_err_t Core_Update(floatsat_core_t *handle)
+{
+    floatsat_err_t ret = ERR_OK;
+
+
+    switch (handle->current_mission)
+    {
+    case MISSION_ID_PHOTO:
+        
+        // Check for
+        if(handle->mission_state == MISSION_STATE_PHOTO_BUSY &&
+            xTaskGetTickCount() > handle->photo_deadline_tick){
+            LOGE(LOG_TAG,"Photo timeout exceeded");
+            handle->photo_deadline_tick = portMAX_DELAY;
+            Core_OnPhotoFail(handle);
+        }
+
+
+        break;
+    
+    default:
+        break;
+    }
+
+    // If the command requested an action, perform it at the end
+    if(handle->action_flags != 0U){
+    	ret = Core_UpdateActions(handle);
+    }
+
+    return ret;
+}
+
+static floatsat_err_t Core_UpdateActions(floatsat_core_t *handle)
 {
     if(!handle){
         return ERR_INVALID_ARG;
@@ -121,6 +156,11 @@ static floatsat_err_t Core_Update(floatsat_core_t *handle)
         handle->action_flags &= (uint32_t)~CORE_ACTION_PHOTO_CLEANUP;
     }
 
+    if(handle->action_flags & CORE_ACTION_PHOTO_FAIL){
+        Core_OnPhotoFail(handle);
+        handle->action_flags &= (uint32_t)~CORE_ACTION_PHOTO_FAIL;
+    }
+
     if(handle->action_flags & CORE_ACTION_BRIDGE_ACTIVE){
         handle->telementry_handle->bridge_active = true;
         handle->action_flags &= (uint32_t)~CORE_ACTION_BRIDGE_ACTIVE;
@@ -131,6 +171,17 @@ static floatsat_err_t Core_Update(floatsat_core_t *handle)
      if(handle->action_flags & CORE_ACTION_TAKE_PHOTO){
         Core_TakePhoto(handle);
         handle->action_flags &= (uint32_t)~CORE_ACTION_TAKE_PHOTO;
+    }
+
+    if(handle->action_flags & CORE_ACTION_CHANGE_MISSION){
+        // Attempt mission change
+        ret = Core_ChangeMission(handle);
+        // Clear the flag only if the mission change was successful. Otherwise leave set 
+        // to attempt on the next loop
+        if(ret == ERR_OK){
+            handle->action_flags &= (uint32_t)~CORE_ACTION_CHANGE_MISSION;
+            LOGI(LOG_TAG,"Mission changed to %u",handle->current_mission);
+        }
     }
 
 
@@ -199,6 +250,9 @@ static floatsat_err_t Core_SendDebug(floatsat_core_t *handle)
 
 #pragma region PHOTO
 
+/// @brief Check the photo instruction array and set a new alarm if required
+/// @param handle 
+/// @return 
 static floatsat_err_t Core_UpdatePhotoAlarm(floatsat_core_t *handle)
 {
     if(!handle){
@@ -215,10 +269,13 @@ static floatsat_err_t Core_UpdatePhotoAlarm(floatsat_core_t *handle)
     }
 
     // Do not modify the photo instruction if it is being executed
-    if(handle->mission_state != MISSION_STATE_PHOTO_BUSY){
-        handle->next_photo = handle->photo_arr[next_photo_index];
+    if(handle->mission_state == MISSION_STATE_PHOTO_BUSY){
+        ret = ERR_RESOURCE_BUSY;
+        goto err;
     }
 
+    handle->next_photo_idx = (uint8_t)next_photo_index;
+    handle->next_photo = handle->photo_arr[next_photo_index];
 
     // The floatsat needs several seconds to reach the photo position, so we set the alarm a few seconds before scheduled
     floatsat_time_t alarm_time;
@@ -230,6 +287,7 @@ static floatsat_err_t Core_UpdatePhotoAlarm(floatsat_core_t *handle)
 
     RTC_SetAlarm(handle->rtc, &alarm_time, 0U, 
                  &Core_OnPhotoAlarm, (void*)handle);
+    handle->next_photo_is_async = false;
 
     LOGI(LOG_TAG, "Created new alarm at %02u:%02u:%02u",
         alarm_time.hours, alarm_time.minutes, alarm_time.seconds);
@@ -308,6 +366,8 @@ static void Core_OnPhotoAlarm(rtc_handle_t *rtc)
 
 static floatsat_err_t Core_TakePhoto(floatsat_core_t *handle)
 {
+    // The state should be BUSY when entering this function
+
     telemetry_packet_cmd_t cmd = {
         .type = PACKET_TYPE_CMD,
         .cmd = {
@@ -316,6 +376,9 @@ static floatsat_err_t Core_TakePhoto(floatsat_core_t *handle)
         },
     };
 
+    handle->photo_deadline_tick = xTaskGetTickCount() 
+        + pdMS_TO_TICKS(CORE_PHOTO_TIMEOUT_MS) * handle->next_photo.amount;
+        
     Telemetry_AddCommand(handle->telementry_handle, &cmd);
 
     return ERR_OK;
@@ -325,10 +388,71 @@ static void Core_OnPhotoFinish(floatsat_core_t *handle)
 {
     handle->mission_state = MISSION_STATE_PHOTO_IDLE;
     handle->action_flags |= CORE_ACTION_UPDATE_PHOTO_ALARM;
-
     LOGI(LOG_TAG,"Photo taken successfully!");
+
+    if(!handle->next_photo_is_async){
+        Core_RemovePhoto(handle, handle->next_photo_idx);
+    }
+    
+    handle->next_photo_is_async = false;
 }
 
+static void Core_OnPhotoFail(floatsat_core_t *handle)
+{
+    handle->mission_state = MISSION_STATE_PHOTO_IDLE;
+    handle->action_flags |= CORE_ACTION_UPDATE_PHOTO_ALARM;
+
+    LOGE(LOG_TAG,"An error ocurred while taking the photo");
+
+    if(!handle->next_photo_is_async){
+        Core_RemovePhoto(handle, handle->next_photo_idx);
+    }
+    
+    handle->next_photo_is_async = false;
+
+}
+
+
+static floatsat_err_t Core_ChangeMission(floatsat_core_t *handle)
+{
+
+    if(handle->g_control_config->control_state != CONTROL_STATE_NOMINAL){
+        return ERR_INVALID_STATE;
+    }
+
+    switch (handle->current_mission)
+    {
+    case MISSION_ID_PLAYGROUND:
+    case MISSION_ID_FOLLOW_SUN:
+
+        break;
+
+    case MISSION_ID_PHOTO:
+        if(handle->mission_state != MISSION_STATE_PHOTO_IDLE){
+            return ERR_INVALID_STATE;
+        }
+        break;
+
+    default:
+        break;
+    }
+
+    switch (handle->next_mission)
+    {
+    case MISSION_ID_PHOTO:
+    case MISSION_ID_PLAYGROUND:
+        // Reset control angle
+        handle->g_control_config->target_angle = 0.0f;
+        break;
+
+    default:
+        break;
+    }
+
+    handle->current_mission = handle->next_mission;
+
+    return ERR_OK;
+}
 
 #pragma endregion
 
@@ -352,7 +476,11 @@ static floatsat_err_t Core_HandleCmd(floatsat_core_t *handle, floatsat_cmd_t *cm
         return ERR_INVALID_ARG;
     }
     floatsat_err_t ret = ERR_OK;
-    // free_pending = cmd_used_malloc(cmd->cmd_id);
+    if(!Util_MissionAllowsCommand(handle->current_mission, cmd->cmd_id)){
+        LOGE(LOG_TAG,"Command ID 0x%02x is not allowed during mission %u", cmd->cmd_id, handle->current_mission);
+        return ERR_INVALID_CMD;
+    }
+
     switch (cmd->cmd_id)
     {
         case CMD_ID_CONTROL_INFO:
@@ -372,10 +500,10 @@ static floatsat_err_t Core_HandleCmd(floatsat_core_t *handle, floatsat_cmd_t *cm
         
 
         case CMD_ID_MISSION_INFO:
-            LOGI(LOG_TAG,"(INFO_MISSION) Current mission ID: %u", handle->mission_id);
+            LOGI(LOG_TAG,"(INFO_MISSION) Current mission ID: %u", handle->current_mission);
             break;
         case CMD_ID_MISSION_SET:
-            GOTO_ON_ERR(Core_ChangeMission(handle, cmd->mission_args.mission_id), err, ret);
+            GOTO_ON_ERR(Core_SetNextMission(handle, cmd->mission_args.mission_id), err, ret);
             break;
 
 
@@ -400,11 +528,9 @@ static floatsat_err_t Core_HandleCmd(floatsat_core_t *handle, floatsat_cmd_t *cm
             break;
 
         case CMD_ID_PHOTO_TAKE:
+            handle->next_photo_is_async = true;
+            handle->mission_state = MISSION_STATE_PHOTO_BUSY;
             GOTO_ON_ERR(Core_TakePhoto(handle), err, ret);
-            break;
-
-        case CMD_ID_PHOTO_MOVE:
-            GOTO_ON_ERR(Core_MovePhoto(handle, cmd->photo_args.index, cmd->photo_args.dest_index), err, ret);
             break;
 
         case CMD_ID_IMU_READ: {
@@ -428,9 +554,6 @@ static floatsat_err_t Core_HandleCmd(floatsat_core_t *handle, floatsat_cmd_t *cm
             GOTO_ON_ERR(Core_Sysctl(handle, cmd), err, ret);
         }
             
-    
-
-
     default:
         break;
     }
@@ -441,5 +564,7 @@ err:
 
     return ret; 
 }
+
+
 
 #pragma endregion

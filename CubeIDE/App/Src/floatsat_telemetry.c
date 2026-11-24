@@ -44,20 +44,19 @@ floatsat_err_t Telemetry_Init(telemetry_handle_t *handle)
     xTraceStringRegister("Telemetry",&xStrTelemetry);
 #endif
 
-    handle->queue = xQueueCreate(TELEMETRY_QUEUE_SIZE, sizeof(telemetry_packet_t*));
-    handle->info_semphr = xSemaphoreCreateMutex();
+
     info_buffer[0] = ASCII_ETX;
     handle->bridge_active = false;
 
-    if(handle->queue == 0U){
-        LOGE(LOG_TAG,"Queue could not be created");
-        return ERR_INVALID_STATE;
-    }
+    // if(handle->queue == 0U){
+    //     LOGE(LOG_TAG,"Queue could not be created");
+    //     return ERR_INVALID_STATE;
+    // }
 
-    if(handle->info_semphr == NULL){
-        LOGE(LOG_TAG,"Semaphore could not be created");
-        return ERR_INVALID_STATE;
-    }
+    // if(handle->info_semphr == NULL){
+    //     LOGE(LOG_TAG,"Semaphore could not be created");
+    //     return ERR_INVALID_STATE;
+    // }
 
     Telemetry_AddToRegistry(handle);
 
@@ -75,6 +74,8 @@ void Task_TelemetryFn(void *args)
     floatsat_err_t ret = ERR_OK;
 
     handle->task_handle = xTaskGetCurrentTaskHandle();
+    handle->queue = xQueueCreate(TELEMETRY_QUEUE_SIZE, sizeof(telemetry_packet_t*));
+    handle->info_semphr = xSemaphoreCreateMutex();
 
     uint32_t TRACE_task_run_count = 0U;
     uint32_t notification_value = 0U;

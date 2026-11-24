@@ -14,6 +14,8 @@
 #include "floatsat_init.h"
 #include "data_bus_priv.h"
 
+static void update_init_flag(floatsat_err_t err, uint32_t *mask, uint32_t flags);
+
 static const char *LOG_TAG = "INIT";
 
 /* ============================= Module handles ============================= */
@@ -96,7 +98,7 @@ static TCA9548_handle_t multiplexer = {
 
 static light_sensor_handle_t light_sensor = {
     .multiplexer    = &multiplexer,
-    .sensors        = {&veml7700_arr[0], &veml7700_arr[3], &veml7700_arr[2]}
+    .sensors        = {&veml7700_arr[0], &veml7700_arr[1], &veml7700_arr[2]}
 };
 
 
@@ -146,6 +148,8 @@ static floatsat_core_t core_handle = {
 
 
 /* -------------- Control -------------- */
+static control_vars_t control_vars = {0};
+
 static control_handle_t control_handle = {
     .imu                = &IMU_handle,
     .madgwick           = &madgwick_filter,
@@ -153,6 +157,7 @@ static control_handle_t control_handle = {
     .motor              = &motor_handle,
     .g_control_config   = &g_control_config,
     .p_core_task        = &core_handle.task_handle,
+    .control_vars       = &control_vars,
 #ifdef FUSION_H
     .fusion_ahrs            = &fusion_ahrs,
     .fusion_ahrs_settings   = &fusion_ahrs_settings,
@@ -179,13 +184,24 @@ floatsat_err_t FloatSat_Init(const floatsat_periph_t *periph,
     if(!periph){
         return ERR_INVALID_ARG;
     }
-    floatsat_err_t ret = ERR_OK;    
+    
+    if(periph->imu_i2c == periph->light_sensor_i2c.periph){
+        return ERR_INVALID_ARG;
+    }
+
+    floatsat_err_t ret = ERR_OK;
+    
+    /*To count which subsystems where initialized properly to determine a degraded state 
+      in which to run*/
+    uint32_t init_mask = 0U; 
 
     // FreeRTOS objects MUST be initialized AFTER all peripherals.
     // The main reason is that creating an object (Queue, smphr etc.) sets the BASEPRI register to 0x50
     // Which makes all interrupts with a priority value higher then 5 not serviceable
     // The HAL Tick interrupt has a priority higher than 5, so the HAL Tick freezes if this happens
-    if(__get_BASEPRI() != 0U){
+    uint32_t base_pri = __get_BASEPRI();
+
+    if(base_pri != 0U){
         return ERR_INVALID_STATE;
     }
     
@@ -205,37 +221,43 @@ floatsat_err_t FloatSat_Init(const floatsat_periph_t *periph,
     IMU_handle.i2c_scl_pin          = periph->i2c_scl_pins[Util_I2C2Index(IMU_handle.i2c_handle->Instance)];
     IMU_handle.i2c_gpio_peirh       = periph->i2c_gpio;
 
-    GOTO_ON_ERR_LOG(IMU_Init(&IMU_handle), err, ret,
-        LOG_TAG, "Error initializaing IMU. Error code: 0x%04x",ret);
+    ret = IMU_Init(&IMU_handle);
+    LOG_ON_ERR(ret, LOG_TAG, "Error initializaing IMU. Error code: 0x%04x",ret);
     
-    IMU_CheckParams(&IMU_handle); // Test for proper initialization
+    ret = IMU_CheckParams(&IMU_handle); // Test for proper initialization
+    LOG_ON_ERR(ret, LOG_TAG, "Error verifying IMU registers. Error code: 0x%04x",ret);
+    update_init_flag(ret, &init_mask, INIT_FLAG_IMU);
 
+    
     /* ------------------------------ Madwick ------------------------------ */
-    GOTO_ON_ERR_LOG(Madgwick_Init(&madgwick_filter),err ,ret,
-        LOG_TAG, "Errorr initializing Madgwick filter. Error code: 0x%04x",ret);
+    // LOG_ON_ERR(Madgwick_Init(&madgwick_filter),err ,ret,
+    //     LOG_TAG, "Errorr initializing Madgwick filter. Error code: 0x%04x",ret);
 
     /* ----------------------------- Motor ----------------------------- */
     motor_handle.pwm_timer                  = periph->motor_pwm_timer;
     motor_handle.encoder_timer              = periph->encoder_timer;
     motor_handle.encoder_sampling_timer     = periph->encoder_sampling_timer;
     motor_handle.encoder_sampling_period_ms = constants->encoder_sampling_period_ms;
-    GOTO_ON_ERR_LOG(Motor_Init(&motor_handle),err ,ret,
-        LOG_TAG, "Errorr initializing motor controller. Error code: 0x%04x",ret);
-
+    ret = Motor_Init(&motor_handle);
+    LOG_ON_ERR(ret, LOG_TAG, "Errorr initializing motor controller. Error code: 0x%04x",ret);
+    update_init_flag(ret, &init_mask, INIT_FLAG_MOTOR);
 
     /* ----------------------------- Control ----------------------------- */
-    GOTO_ON_ERR_LOG(Control_Init(&control_handle), err, ret,
-        LOG_TAG, "Error initializing control. Error code: 0x%04x", ret);
-
-    /* ----------------------------- Telecommand ----------------------------- */
-    cmd_manager.uart = periph->main_uart;
-    GOTO_ON_ERR_LOG(CmdManager_Init(&cmd_manager), err, ret,
-        LOG_TAG, "Error initializing telecomand manager. Error code: 0x%04x", ret);
+    ret = Control_Init(&control_handle);
+    LOG_ON_ERR(ret, LOG_TAG, "Error initializing control. Error code: 0x%04x", ret);
+    update_init_flag(ret, &init_mask, INIT_FLAG_CONTROL);
 
     /* ----------------------------- Telemetry ----------------------------- */
     telemetry_handle.uart = periph->main_uart;
-    GOTO_ON_ERR_LOG(Telemetry_Init(&telemetry_handle), err, ret, 
-        LOG_TAG, "Error initializing telemetry. Error code: 0x%04x", ret);
+    ret = Telemetry_Init(&telemetry_handle);
+    LOG_ON_ERR(ret, LOG_TAG, "Error initializing telemetry. Error code: 0x%04x", ret);
+    update_init_flag(ret, &init_mask, INIT_FLAG_TELEMETRY);
+
+    /* ----------------------------- Telecommand ----------------------------- */
+    cmd_manager.uart = periph->main_uart;
+    ret = CmdManager_Init(&cmd_manager);
+    LOG_ON_ERR(ret, LOG_TAG, "Error initializing telecomand manager. Error code: 0x%04x", ret);
+    update_init_flag(ret, &init_mask, INIT_FLAG_TELECOMMAND);
 
     /* ----------------------------- Light Sensor----------------------------- */
     for (size_t i = 0; i < FLOATSAT_LIGHT_SENSOR_AMOUNT; i++)
@@ -244,23 +266,28 @@ floatsat_err_t FloatSat_Init(const floatsat_periph_t *periph,
     }
     multiplexer.i2c = periph->light_sensor_i2c;
 
-    // GOTO_ON_ERR_LOG(LightSensor_Init(&light_sensor), err, ret,
-    //     LOG_TAG, "Error initializing light sensors. Error code: 0x%04x", ret);
-    
+    base_pri = __get_BASEPRI();
+
+    ret = LightSensor_Init(&light_sensor);
+    LOG_ON_ERR(ret, LOG_TAG, "Error initializing light sensors. Error code: 0x%04x", ret);
+    update_init_flag(ret, &init_mask, INIT_FLAG_TELECOMMAND);
+
     /* ----------------------------- Core ----------------------------- */
-    GOTO_ON_ERR_LOG(Core_Init(&core_handle), err, ret, 
-        LOG_TAG, "Error initializing Supervisor (aka Core). Error code: 0x%04x", ret);
+    ret = Core_Init(&core_handle);
+    LOG_ON_ERR(ret, LOG_TAG, "Error initializing Supervisor (aka Core). Error code: 0x%04x", ret);
+    update_init_flag(ret, &init_mask, INIT_FLAG_CORE);
 
     /* ------------------------------ RTC ------------------------------ */
     rtc_handle.rtc = periph->rtc;
-    GOTO_ON_ERR_LOG(RTC_Init(&rtc_handle),err, ret,
-        LOG_TAG,"Error initializing RTC");
+    ret = RTC_Init(&rtc_handle);
+    LOG_ON_ERR(ret, LOG_TAG,"Error initializing RTC");
+    update_init_flag(ret, &init_mask, INIT_FLAG_RTC);
 
 
     /* ----------------------------- Utility ----------------------------- */
-    GOTO_ON_ERR_LOG(Util_Init(periph->microsec_timer), err, ret, 
-        LOG_TAG, "Error initializing utilities. Error code: 0x%04x", ret);
-    
+    ret = Util_Init(periph->microsec_timer);
+    LOG_ON_ERR(ret, LOG_TAG, "Error initializing utilities. Error code: 0x%04x", ret);
+    update_init_flag(ret, &init_mask, INIT_FLAG_UTILITY);
 
     xTraceEnable(TRC_START);
 
@@ -268,16 +295,29 @@ floatsat_err_t FloatSat_Init(const floatsat_periph_t *periph,
     core_handle.cmd_queue = xQueueCreate(CORE_CMD_QUEUE_LEN,sizeof(floatsat_cmd_t));
     cmd_manager.core_cmd_queue = core_handle.cmd_queue;
 
+    telemetry_handle.queue = xQueueCreate(TELEMETRY_QUEUE_SIZE, sizeof(telemetry_packet_t*));
+    telemetry_handle.info_semphr = xSemaphoreCreateMutex();
+
+
     // Pass the callbacks defined in main.c to their corresponding module
-    
     /* ----------------------------- Motor ----------------------------- */
     out_callbacks->encoder_sample_cb = Motor_Cb_EncoderSampler;
     
-    return ERR_OK;
+    if(init_mask == INIT_MASK_ALL_PASSED){
+        return ERR_OK;
+    }else{
+        return ERR_INIT_FAILURE;
+    }
 
-err:
-    return ret;
+}
 
+static void update_init_flag(floatsat_err_t err, uint32_t *mask, uint32_t flags)
+{
+    if(err == ERR_OK){
+        *mask |= flags;
+    }else{
+        *mask &= (uint32_t)~flags;
+    }
 }
 
 const floatsat_handles_t* FloatSat_GetHandles(void)

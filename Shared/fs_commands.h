@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#define TO_BIT(x) (1U << x)
+
 #define CMD_MAX_PHOTO_AMOUNT_PER_INSTRUCTION   (10)
 
 
@@ -18,8 +20,7 @@
 #define CMD_ID_PHOTO_EDIT       ((uint8_t)0x32)
 #define CMD_ID_PHOTO_REMOVE     ((uint8_t)0x33)
 #define CMD_ID_PHOTO_RESET      ((uint8_t)0x34)
-#define CMD_ID_PHOTO_MOVE       ((uint8_t)0x35)
-#define CMD_ID_PHOTO_TAKE       ((uint8_t)0x36)
+#define CMD_ID_PHOTO_TAKE       ((uint8_t)0x35)
 
 
 #define CMD_ID_IMU_READ         ((uint8_t)0x40)
@@ -136,12 +137,24 @@ typedef struct floatsat_cmd_t {
 
 }floatsat_cmd_t;
 
+typedef struct cmd_list_t {
+    const uint8_t *list;
+    size_t len;
+}cmd_list_t;
+
+
+#define CMD_LIST(...) \
+{                                               \
+    (const uint8_t[]) {__VA_ARGS__},            \
+    sizeof( (const uint8_t[]){__VA_ARGS__ } )   \
+}
 
 //@mission_id
 #define MISSION_ID_PLAYGROUND       0
 #define MISSION_ID_FOLLOW_SUN       1
 #define MISSION_ID_PHOTO            2
 
+#define FLOATSAT_MISSION_AMOUNT     3           
 
 /* @control_type */
 #define CONTROL_TYPE_NO_CHANGE      0

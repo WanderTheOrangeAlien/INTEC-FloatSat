@@ -161,13 +161,7 @@ int main(void)
   };
 
   floatsat_err_t ret = FloatSat_Init(&peripherals, &user_constants, &callbacks);
-
-  if(ret != ERR_OK)
-  {
-	  LOGE("MAIN","Failure during initialization!");
-	  Error_Handler();
-  }
-
+  (void)ret;
 
   /* USER CODE END 2 */
 

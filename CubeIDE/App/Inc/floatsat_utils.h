@@ -4,7 +4,7 @@
 #include "stm32f4xx_hal.h"
 #include "floatsat_error.h"
 #include "floatsat_log.h"
-
+#include "fs_commands.h"
 
 floatsat_err_t Util_Init(TIM_HandleTypeDef *microsec_timer);
 void Util_IncTimeUsOverflow(void);
@@ -23,5 +23,7 @@ floatsat_err_t Util_EnableGPIOClock(GPIO_TypeDef *gpio);
 
 void Util_Stopwatch_Start(uint64_t *time_us);
 void Util_Stopwatch_Stop(uint64_t *time_us, const char *message);
+bool Util_MissionAllowsCommand(uint8_t mission_id, uint8_t cmd_id);
+
 
 #endif

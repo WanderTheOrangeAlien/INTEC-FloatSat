@@ -22,6 +22,28 @@ static const GPIO_TypeDef *const GPIO_MAP[] = {
     GPIOF, GPIOG, GPIOH, GPIOI
 };
 
+static const cmd_list_t allowed_mission_cmds[] = {
+    [MISSION_ID_PLAYGROUND] =
+        CMD_LIST(CMD_ID_CONTROL_INFO, CMD_ID_CONTROL_MODIFY, 
+                CMD_ID_MISSION_INFO, CMD_ID_MISSION_SET,
+                CMD_ID_IMU_READ, CMD_ID_IMU_CALIBRATE, 
+                CMD_ID_MOTOR_PWM_SET, 
+                CMD_ID_SYSCTL),
+
+    [MISSION_ID_FOLLOW_SUN] =
+        CMD_LIST(CMD_ID_CONTROL_INFO, 
+                CMD_ID_MISSION_INFO, CMD_ID_MISSION_SET, 
+                CMD_ID_IMU_READ, 
+                CMD_ID_SYSCTL),
+
+    [MISSION_ID_PHOTO] =
+        CMD_LIST(CMD_ID_PHOTO_INFO, CMD_ID_PHOTO_ADD, CMD_ID_PHOTO_EDIT,
+                CMD_ID_PHOTO_REMOVE, CMD_ID_PHOTO_RESET, CMD_ID_PHOTO_TAKE,
+                CMD_ID_MISSION_INFO, CMD_ID_MISSION_SET,
+                CMD_ID_SYSCTL)
+};
+
+
 static TIM_HandleTypeDef *us_timer = NULL;
 
 floatsat_err_t Util_Init(TIM_HandleTypeDef *microsec_timer)
@@ -29,6 +51,10 @@ floatsat_err_t Util_Init(TIM_HandleTypeDef *microsec_timer)
     if(!microsec_timer){
         return ERR_INVALID_ARG;
     }
+
+    // Create the allowed cmd masks
+    
+
     us_timer = microsec_timer;
 
     HAL_TIM_Base_Start(microsec_timer);
@@ -201,4 +227,22 @@ void Util_Stopwatch_Stop(uint64_t *start_time_us, const char *message)
 {
     uint64_t elapsed = Util_GetTimeUs() - *start_time_us;
     LOGI("STOPWATCH","%s. Elapsed time: %llu us", message, elapsed);
+}
+
+
+
+
+bool Util_MissionAllowsCommand(uint8_t mission_id, uint8_t cmd_id)
+{
+    if(mission_id >= sizeof(allowed_mission_cmds) / sizeof(allowed_mission_cmds[0])){
+        return false;
+    }
+
+    for (size_t i = 0; i < allowed_mission_cmds[mission_id].len; i++)
+    {
+        if(cmd_id == allowed_mission_cmds[mission_id].list[i]){
+            return true;
+        }
+    }
+    return false;    
 }

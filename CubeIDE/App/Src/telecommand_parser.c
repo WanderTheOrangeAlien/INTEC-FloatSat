@@ -62,7 +62,7 @@ static struct {
 
 
 /* =========================== Mission command =========================== */
-// Format: misson -i
+// Format: mission -i
 static struct {
     struct arg_lit *info;
     struct arg_end *end;
@@ -107,14 +107,6 @@ static struct {
     struct arg_int *index;
     struct arg_end *end;
 }argtable_photo_remove;
-
-//format photo move <src> <dest>
-static struct {
-    struct arg_rex *subcmd;
-    struct arg_int *src;
-    struct arg_int *dest;
-    struct arg_end *end;
-}argtable_photo_move;
 
 // Format: photo reset
 static struct {
@@ -294,13 +286,6 @@ static int cmd_init_photo(void)
     argtable_photo_remove.subcmd        =   arg_rex1(NULL, NULL, "rm", NULL, ARG_REX_ICASE, NULL);
     argtable_photo_remove.index         =   arg_int1(NULL, NULL, "uint8_t","Index of the photo to remove");
     argtable_photo_remove.end           =   arg_end(CMD_MAX_ERRORS);
-    
-    // Format: photo move <src> <dest>
-    argtable_photo_move.subcmd          =   arg_rex1(NULL,NULL, "move", NULL, ARG_REX_ICASE, NULL);
-    argtable_photo_move.src             =   arg_int1(NULL, NULL, "uint8_t","Index of the entry to move");
-    argtable_photo_move.dest            =   arg_int1(NULL, NULL, "uint8_t","Destination index");
-    argtable_photo_move.end             =   arg_end(CMD_MAX_ERRORS);
-
 
     // Format: photo reset
     argtable_photo_reset.subcmd         =   arg_rex1(NULL, NULL, "reset", NULL, ARG_REX_ICASE, "Reset subcommand");
@@ -537,8 +522,7 @@ static floatsat_err_t parse_cmd_photo(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
     nerrors_arr[2] = arg_parse(ctx->argc, ctx->argv, (void**)&argtable_photo_edit);
     nerrors_arr[3] = arg_parse(ctx->argc, ctx->argv, (void**)&argtable_photo_remove);
     nerrors_arr[4] = arg_parse(ctx->argc, ctx->argv, (void**)&argtable_photo_reset);
-    nerrors_arr[5] = arg_parse(ctx->argc, ctx->argv, (void**)&argtable_photo_move);
-    nerrors_arr[6] = arg_parse(ctx->argc, ctx->argv, (void**)&argtable_photo_take);
+    nerrors_arr[5] = arg_parse(ctx->argc, ctx->argv, (void**)&argtable_photo_take);
 
     if(!nerrors_arr[0]){
         // Format: photo -i
@@ -594,23 +578,7 @@ static floatsat_err_t parse_cmd_photo(parser_ctx_t *ctx, floatsat_cmd_t *cmd)
         // Format: photo reset
         cmd->cmd_id = CMD_ID_PHOTO_RESET;
 
-    }else if(!nerrors_arr[5]){
-        cmd->cmd_id = CMD_ID_PHOTO_MOVE;
-        if(argtable_photo_move.src->ival[0] < 0 || argtable_photo_move.dest->ival[0] < 0){
-            LOGE(LOG_TAG,"Error: Negative photo index");
-            return ERR_INVALID_ARG;
-        }
-
-        if(argtable_photo_move.src->ival[0] == argtable_photo_move.dest->ival[0]){
-            LOGE(LOG_TAG,"Error: Source and destination are the same");
-            return ERR_INVALID_ARG;
-        }
-
-        cmd->photo_args.index       = (uint8_t)argtable_photo_move.src->ival[0];
-        cmd->photo_args.dest_index  = (uint8_t)argtable_photo_move.dest->ival[0];
-
-
-    } else if(!nerrors_arr[6]){
+    } else if(!nerrors_arr[5]){
         cmd->cmd_id = CMD_ID_PHOTO_TAKE;
 
     } else{

@@ -59,23 +59,45 @@ ___
 
 - IMPORTANT: Give the telemetry packets a 2-byte end delimiter so that the ESP32 can re-sync in the case of an invalid packet type detected **DONE**
 
-- Add failsafe for angular velocity crossing a thereshold
 - Add anti-windup for the control loop integral **DONE** (Used Madgwick's fusion library)
 - Add movement checks during gyro calibration
 
 - Make ESP32 comms robust (consider reading everything into a buffer and parse it asynchrnously, because receiving, parsing and waiting is too prone to error) **DONE**
 
 - We can't access the webserver after a cold start. (When we power on the system, we have to later restart the ESP32 for it to work) Look into that. **DONE**
-
-*NEXT*
-- Update the specs to match the firmware changes (new commands, photo now uses the amount of photos instead of duration, changed telemetry packets)
-- Failing to init one single module halts the floatsat. Have a more graceful error handling. 
 - Add a command to set the RTC time and date **DONE**
-
 - Turn the ESP32 into a wifi access point and give it a URL so we can access it without the IP **DONE**
-
 - Implement sending an JPEG image through websocket. **DONE**
 
+*NEXT*
+- Add failsafe for angular velocity crossing a thereshold
+
+- Failing to init one single module halts the floatsat. Have a more graceful error handling.
+
+- Update the specs to match the firmware changes (new commands, photo now uses the amount of photos instead of duration, changed telemetry packets)
+
+- Skeleton code for the Sunchaser Mission
+
+- Implemente the mission states (A mission allows only a certain set of commands. IDEA: We could implement this as a bitmask for the action flags?)
+
+- After a photo is taken, the corresponding entry in the photo list should be deleted
+
+- Delete the `photo move` command.
+
+- Make the ground station set the RTC on connection
+
+- Detect when the reaction wheel cannot change momentum anymore (the rotation air acceleration added too much angular momentum. This happens when the wheel gets stuck in its maximum PWM value and is not able to hold position)
+
+- Add the `on_photo_failure` callback
+
+- Look into client cleaunp after disconnection on the ESP32
+
+
+*NEXT 2*
+- Implementation with the actual Ground Station UI
+
+
+- Create subsystem failure tests
 
 ## DEMO 1: Simple PID control
 

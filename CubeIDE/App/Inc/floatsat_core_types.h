@@ -25,27 +25,38 @@
 #define CORE_ACTION_RESET_PHOTOS            (1U << 5)
 #define CORE_ACTION_CHANGE_MISSION          (1U << 6)
 #define CORE_ACTION_BRIDGE_ACTIVE           (1U << 7)
+#define CORE_ACTION_PHOTO_FAIL              (1U << 8)
+
 
 #define CORE_MAX_PHOTO_INSTRUCTIONS         32
 #define CORE_PHOTO_PREPARATION_TIME_S       10U // TODO: Change this to an actual measured value
+#define CORE_PHOTO_TIMEOUT_MS               (10U * 1000U)
 
 #define MISSION_STATE_PHOTO_IDLE            0x00
 #define MISSION_STATE_PHOTO_MOVING          0x01
 #define MISSION_STATE_PHOTO_BUSY            0x02
 
 typedef struct floatsat_core_t {
-    uint8_t             mission_id; // See @mission_id
-
+    
     photo_info_t        *photo_arr;
-    photo_info_t        next_photo; /* Shadow copy of the next photo instruction to execute, 
-                                     so that the list can be modified without interrupting the execution */
-    uint8_t             photo_arr_len;  
+    photo_info_t        next_photo;     /* Shadow copy of the next photo instruction to execute, 
+                                        so that the list can be modified without interrupting the execution */
+    uint8_t             next_photo_idx;
+    uint8_t             photo_arr_len;
+    bool                next_photo_is_async;   // Set when the commmand CMD_ID_PHOTO_TAKE is received 
+    uint32_t            photo_deadline_tick; /* FreeRTOS tick that indicates the deadline to take the photo. 
+                                                If the ESP32 does not invoke the finish/fail callback, 
+                                                the fail callback will be invoked automatically  */
+    
+    uint8_t             current_mission;         // See @mission_id
+    uint8_t             next_mission;
 
     uint32_t            action_flags;       /* These flags are set through commands and indicate that 
                                                 a lazy action (one done after critical ones) is
                                                 pending. For instance, changing the mission */
     uint8_t             debug_id;
-    uint8_t             mission_state;
+    uint8_t             mission_state;      /*  States internal to the current mission. 
+                                                Right now only for the photo mission*/
 
     TaskHandle_t        task_handle;
     floatsat_cmd_t      current_cmd;

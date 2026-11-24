@@ -27,4 +27,11 @@
   }                                           \
 }while(0)
 
+#define LOG_ON_ERR(x, tag, format, ...) do {    \
+    floatsat_err_t ret_val = (x);                              \
+    if(ret_val != ERR_OK){                      \
+      LOGE(tag, format, ##__VA_ARGS__);         \
+    }                                           \
+}while(0)
+
 #endif

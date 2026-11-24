@@ -44,6 +44,9 @@ typedef uint64_t timestamp_t;
 #define CONTROL_MIN_PARAMS      3
 #define CONTROL_MAX_PARAMS      4
 
+#define CONTROL_STATE_NOMINAL   0x00
+#define CONTROL_STATE_RW_SAT            0x01 
+#define CONTROL_STATE_RW_SAT_RECOVERY   0x02
 
 /// Configuration parameters for the control system. These are changed by the Core in response to commands.
 typedef struct control_cascade_params_t {
@@ -67,6 +70,7 @@ typedef struct control_config_t {
     uint8_t                     control_type;
     bool                        control_active;
     uint8_t                     debug_id;
+    uint8_t                     control_state; // The Core reads the state to determine if a recovery action is needed
 }control_config_t;
 
 

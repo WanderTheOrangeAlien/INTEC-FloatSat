@@ -2,6 +2,8 @@
 #include <float.h>
 
 static floatsat_err_t Core_IMUCalibrate_Mag(floatsat_core_t *handle);
+static bool is_new_photo_valid(floatsat_core_t *handle,floatsat_time_t *photo_time, floatsat_time_t *now);
+
 
 static uint32_t get_sys_cb_flag(const char *name);
 
@@ -10,6 +12,7 @@ static const char LOG_TAG[] = "CORE";
 static const sys_cb_entry_t sys_cb_table[]  = {
     {CORE_ACTION_PHOTO_CLEANUP, "on_photo_finish"},
     {CORE_ACTION_BRIDGE_ACTIVE, "on_bridge_active"},
+    {CORE_ACTION_PHOTO_FAIL,    "on_photo_fail"}
 };
 
 floatsat_err_t Core_SetControl(floatsat_core_t *handle, floatsat_cmd_t *cmd)
@@ -45,6 +48,7 @@ floatsat_err_t Core_SetControl(floatsat_core_t *handle, floatsat_cmd_t *cmd)
         LOGI(LOG_TAG,"Changed target angle to %.2f",(double)handle->g_control_config->target_angle);
     }
 
+    // TODO: This is obsolete
     if(cmd->control_args.action_flags & CMD_CONTROL_FLAG_DBG_ID){
         handle->g_control_config->debug_id = cmd->control_args.debug_id;
         LOGI(LOG_TAG,"Changed control debug packet id to %u", handle->g_control_config->debug_id);
@@ -64,12 +68,11 @@ floatsat_err_t Core_SetControl(floatsat_core_t *handle, floatsat_cmd_t *cmd)
     return ERR_OK;
 }
 
-floatsat_err_t Core_ChangeMission(floatsat_core_t *handle, uint32_t mission)
+floatsat_err_t Core_SetNextMission(floatsat_core_t *handle, uint8_t mission)
 {
     // Set the flag for mission change 
     handle->action_flags |= (CORE_ACTION_CHANGE_MISSION);
-    UNUSED(mission); // TODO: Use this,lol
-
+    handle->next_mission = mission;
     return ERR_OK;
 }
 
@@ -83,6 +86,19 @@ floatsat_err_t Core_AddPhoto(floatsat_core_t *handle, photo_info_t *photo)
         LOGE(LOG_TAG,"Error: Photo array full");
         return ERR_CORE_MAX_PHOTOS;
     }
+
+    floatsat_time_t now = {0};
+    floatsat_err_t ret = RTC_GetTimeDate(handle->rtc, &now, NULL);
+    if(ret != ERR_OK){
+        LOGE(LOG_TAG, "(Add Photo) Error reading RTC");
+        return ERR_CORE_RTC_READ_FAIL;
+    }
+
+    if(!is_new_photo_valid(handle, &photo->time, &now)){
+        return ERR_INVALID_ARG;
+    }
+
+
     handle->photo_arr[handle->photo_arr_len] = *photo;
 
     photo_info_t *new_photo = &handle->photo_arr[handle->photo_arr_len];
@@ -100,6 +116,36 @@ floatsat_err_t Core_AddPhoto(floatsat_core_t *handle, photo_info_t *photo)
     handle->action_flags |= CORE_ACTION_UPDATE_PHOTO_ALARM;
 
     return ERR_OK;
+}
+
+static bool is_new_photo_valid(floatsat_core_t *handle,floatsat_time_t *photo_time, floatsat_time_t *now)
+{
+    int delta = 0;
+    for (size_t i = 0; i < handle->photo_arr_len; i++)
+    {
+        delta = Time_Delta(&handle->photo_arr[i].time, photo_time);
+        
+        if(abs(delta) <= (int)CORE_PHOTO_PREPARATION_TIME_S){
+            LOGE(LOG_TAG, "Photo requires at least %u seconds of preparation time", CORE_PHOTO_PREPARATION_TIME_S);
+            return false;
+        }   
+    }
+
+    delta = Time_Delta(photo_time, now);
+    if(delta < 0){
+        LOGE(LOG_TAG, "Cannot add a photo in the past");
+        return false;
+    }
+    
+    if(delta <= (int)CORE_PHOTO_PREPARATION_TIME_S){
+        LOGE(LOG_TAG, "Photo requires at least %u seconds of preparation time");
+        return false;
+
+    }
+    
+
+    return true;
+
 }
 
 floatsat_err_t Core_EditPhoto(floatsat_core_t *handle, photo_info_t *photo, uint8_t index, uint32_t flags)
@@ -187,26 +233,6 @@ floatsat_err_t Core_ResetPhotos(floatsat_core_t *handle)
     handle->action_flags |= CORE_ACTION_RESET_PHOTOS;
     return ERR_OK;
 
-}
-
-floatsat_err_t Core_MovePhoto(floatsat_core_t *handle, uint8_t src, uint8_t dest)
-{
-    if(!handle){
-        return ERR_INVALID_ARG;
-    }
-
-    if(src >= handle->photo_arr_len){
-        LOGE(LOG_TAG, "Source out of bounds");
-        return ERR_INVALID_ARG;
-    }
-
-    if(dest >= handle->photo_arr_len){
-        LOGE(LOG_TAG, "Destination out of bounds");
-        return ERR_INVALID_ARG;
-    }
-
-    LOGW(LOG_TAG,"Not implemented yet");
-    return ERR_OK;
 }
 
 void Core_PrintPhotoInfo(floatsat_core_t *handle)

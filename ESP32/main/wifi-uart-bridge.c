@@ -164,7 +164,7 @@ static void handle_esp_command(esp_cmd_t *cmd)
     if(cmd->cmd_id == EXT_CMD_TAKE_PHOTO){
         ESP_LOGI(LOG_TAG,"Taking %u photos...",cmd->args.photo_amount);
 
-        xTaskNotifyGive(camera_task_handle);
+        xTaskNotify(camera_task_handle, cmd->args.photo_amount, eSetValueWithOverwrite);
     }
 
 }
@@ -175,6 +175,7 @@ static void Camera_Task(void *params)
     uint8_t *chunk_buffer = NULL;
     size_t chunk_idx = 0U, remaining = 0U, xfer_len = 0U;
     size_t loop_iters = 0U;
+    uint32_t notification_val = 0U;
 
     esp_err_t ret = ESP_OK;
 
@@ -190,8 +191,10 @@ static void Camera_Task(void *params)
     }
 
     while(1){
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        notification_val = ulTaskNotifyTake(pdFALSE, portMAX_DELAY);
         
+        ESP_LOGI(LOG_TAG, "taking photo #%u", notification_val);
+
 #ifdef ARDUCAM_OV2640_H
         ret = OV2640_Capture(&camera, &remaining);
         if(ret != ESP_OK){
@@ -272,12 +275,16 @@ static void Camera_Task(void *params)
             goto err;
         }
 
-        UART_SendFloatsatCmd(&uart_handle, "sys --invoke-cb on_photo_finish");
-        ESP_LOGI(LOG_TAG,"Photo finished!");
+        if(notification_val <= 1U){
+            UART_SendFloatsatCmd(&uart_handle, "sys --invoke-cb on_photo_finish");
+            ESP_LOGI(LOG_TAG,"Photos finished!");
+        }
+
         continue;
     err:
         chunk_idx = 0U;
         remaining = 0U;
+        ulTaskNotifyValueClear(NULL, UINT_MAX);
         UART_SendFloatsatCmd(&uart_handle, "sys --invoke-cb on_photo_fail");
         ESP_LOGE(LOG_TAG,"Photo failed!");
 

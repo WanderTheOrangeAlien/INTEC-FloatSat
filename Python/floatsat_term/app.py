@@ -9,6 +9,7 @@ from .camera import CameraReceiver
 from .console import PROMPT, Console
 from .link import Link
 from .procedures import PROCEDURES
+from . import scripts
 from .view import STATUS_ROWS, show_packet
 
 
@@ -57,14 +58,16 @@ class App:
                 self.start_procedure(name)
             case ["test", *_]:
                 self.console.info(f"usage: test <{'|'.join(PROCEDURES)}>")
+            case ["script", *args]:
+                self.start_script(args)
             case ["abort"]:
                 if self.procedure_running:
                     self.procedure.cancel()
                 else:
-                    self.console.info("no test is running")
+                    self.console.info("no test or script is running")
             case _ if self.procedure_running:
                 # keep the test's measurements clean
-                self.console.info("a test is running, type 'abort' to stop it first")
+                self.console.info("a test or script is running, type 'abort' to stop it first")
             case _ if self.link is None:
                 self.console.info("not connected, command not sent")
             case _:
@@ -76,20 +79,45 @@ class App:
     # ---- procedures -------------------------------------------------------
 
     def start_procedure(self, name: str):
-        if self.procedure_running:
-            self.console.info("a test is already running")
-            return
-        self.procedure = asyncio.create_task(self._run_procedure(name))
+        self._start_task(f"test {name}", PROCEDURES[name](self.link, self.console.info))
 
-    async def _run_procedure(self, name: str):
+    def start_script(self, args: list[str]):
+        try:
+            sequences = scripts.load_sequences()
+        except scripts.SequenceError as e:
+            self.console.info(f"[script] {e}")
+            return
+        if len(args) != 1 or args[0] not in sequences:
+            if args:
+                self.console.info(f"[script] unknown sequence {' '.join(args)!r}")
+            names = ", ".join(sequences) or f"none (add them to {scripts.SEQUENCES_FILE.name})"
+            self.console.info(f"usage: script <name>   sequences: {names}")
+            return
+        if self.link is None:
+            self.console.info("not connected, script not started")
+            return
+        name = args[0]
+        self._start_task(f"script {name}",
+                         scripts.run(name, sequences[name], self.link, self.console.info))
+
+    def _start_task(self, label: str, coro):
+        """Run a test or script in the single procedure slot, so 'abort' and
+        a dropped link cancel it the same way."""
+        if self.procedure_running:
+            coro.close()                    # never started, avoid the "never awaited" warning
+            self.console.info("a test or script is already running")
+            return
+        self.procedure = asyncio.create_task(self._run_procedure(label, coro))
+
+    async def _run_procedure(self, label: str, coro):
         try:
             # a test is bound to the link it started on; if that link drops,
             # the test is cancelled (see _connection_loop)
-            await PROCEDURES[name](self.link, self.console.info)
+            await coro
         except asyncio.CancelledError:
             pass                            # aborted; the procedure already said so
         except Exception as e:
-            self.console.info(f"[test {name}] failed: {type(e).__name__}: {e}")
+            self.console.info(f"[{label}] failed: {type(e).__name__}: {e}")
 
     async def stop_procedure(self):
         """Cancel a running procedure and wait for its cleanup (e.g. motor off)."""
@@ -134,7 +162,7 @@ class App:
                 self.link = None
                 await ws.close()
             if self.procedure_running:
-                self.console.info("connection lost, aborting the running test")
+                self.console.info("connection lost, aborting the running test or script")
                 await self.stop_procedure()
             self.console.info(f"Disconnected. Reconnecting to {self.uri}...")
 

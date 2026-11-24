@@ -20,6 +20,7 @@ typedef enum floatsat_err_t {
     ERR_INVALID_REG             =   0x005,
     ERR_INVALID_STATE           =   0x006,
     ERR_BUFFER_OVERFLOW         =   0x007,
+    ERR_INIT_FAILURE            =   0x008,
     
     ERR_UART_TX_FAIL            =   0x100,
 

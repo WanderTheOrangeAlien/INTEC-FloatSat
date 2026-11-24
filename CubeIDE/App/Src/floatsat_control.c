@@ -2,18 +2,25 @@
 #include <string.h>
 
 static floatsat_err_t Control_ComputeOutput(
-    const control_handle_t *handle, 
+    const control_handle_t *handle,
     const IMU_data_t *imu_data, 
     float *out, 
     control_data_t *debug_data_out);
 
 static floatsat_err_t Control_EstimateOrientation(control_handle_t *handle, IMU_data_t *imu_data);
 static floatsat_err_t Control_SendDebug(control_handle_t *handle, IMU_data_t *imu_data, control_data_t *control_data);
+static void handle_rw_saturation(control_handle_t *handle, const IMU_data_t *imu_data);
+static void angular_vel_failsafe(control_handle_t *handle, const IMU_data_t *imu_data);
+static bool is_stationary(float w, float threshold);
 
 
+static const Vec3_t forward_vec = {1,0,0}; // The north corresponds to the X axis. 
 
-static const Vec3_t forward_vec = {1,0,0}; // Here we assume that the north corresponds to the X axis. 
-                                           // TODO: Check the IMU orientation to confirm this 
+static const control_cascade_params_t default_control_params = {
+    .k_theta    = -0.5f ,
+    .k_p        = -0.01230458266f,
+    .k_i        = -0.00499678814f
+};
 
 static const char LOG_TAG[] = "CONTROL";
 
@@ -24,7 +31,7 @@ floatsat_err_t Control_Init(control_handle_t *handle)
     }
 
     if(!handle->telemetry_handle || !handle->imu || !handle->madgwick 
-        || !handle->g_control_config || !handle->motor){
+        || !handle->g_control_config || !handle->motor || !handle->control_vars){
         return ERR_INVALID_ARG;
     }
     floatsat_err_t ret = ERR_OK;
@@ -36,12 +43,11 @@ floatsat_err_t Control_Init(control_handle_t *handle)
     GOTO_ON_ERR_LOG(DataBus_GetWriter_IMU(&handle->data_bus_writer),err, ret,
             LOG_TAG, "Could not acquire data bus writer");
     handle->g_control_config->debug_id = DEBUG_PACKET_ID_CONTROL;
-    handle->g_control_config->params = (control_cascade_params_t){
-        .k_theta    = -0.5f ,
-        .k_p        = -0.01230458266f,
-        .k_i        = -0.00499678814f
-    };
+    handle->g_control_config->params = default_control_params;
     handle->g_control_config->control_active = false;
+    handle->g_control_config->control_state = CONTROL_STATE_NOMINAL;
+
+    memset(handle->control_vars, 0, sizeof(control_vars_t));
 
 #ifdef FUSION_H
     UNUSED(forward_vec);
@@ -50,6 +56,8 @@ floatsat_err_t Control_Init(control_handle_t *handle)
     FusionBiasInitialise(handle->fusion_bias);
     FusionBiasSetSettings(handle->fusion_bias, handle->fusion_bias_settings);
 
+#else
+    Madgwick_Init(&handle->madgwick);
 #endif
 
     LOGI(LOG_TAG,"Initialization succesful");
@@ -70,9 +78,9 @@ void Task_ControlFn(void *args)
     float       pwm_out = 0.0f;
     TickType_t  last_wake_time = xTaskGetTickCount();
 
+    uint32_t    saturation_time_ms = 0U;
+
     control_data_t debug_control_data = {0};
-
-
     floatsat_err_t ret = ERR_OK;
 
     uint32_t dbg_count = 0U;
@@ -88,6 +96,9 @@ void Task_ControlFn(void *args)
             // TODO: Implement recovery
         }
 
+        handle_rw_saturation(handle, &imu_data);
+        angular_vel_failsafe(handle, &imu_data);
+
         if(handle->g_control_config->control_active){
             if(ret == ERR_OK){
                 ret = Control_ComputeOutput(handle, &imu_data, &pwm_out, &debug_control_data);
@@ -96,8 +107,21 @@ void Task_ControlFn(void *args)
             if(ret == ERR_OK){
                 Motor_SetDutyCycle(handle->motor, pwm_out);
             }
+        }else{
+            pwm_out = 0.0f;
         }
-            
+
+        // Check for saturation
+        if(fabsf(pwm_out) >= CONTROL_MAX_PWM - CONTROL_PWM_SAT_THRS
+            && handle->g_control_config->control_state == CONTROL_STATE_NOMINAL){
+            saturation_time_ms += CONTROL_LOOP_PERIOD_MS;
+        }else{
+            saturation_time_ms = 0U;
+        }
+
+        if(saturation_time_ms >= CONTROL_MAX_SAT_TIME_MS){
+            handle->g_control_config->control_state = CONTROL_STATE_RW_SAT;
+        }
 
         /* ======================= Control Loop End ======================= */
 
@@ -127,6 +151,112 @@ void Task_ControlFn(void *args)
         vTaskDelayUntil(&last_wake_time, pdMS_TO_TICKS(CONTROL_LOOP_PERIOD_MS));
 
     }
+
+}
+
+
+/// @brief 
+/// @param handle 
+/// @param imu_data 
+static void handle_rw_saturation(control_handle_t *handle, const IMU_data_t *imu_data)
+{
+    /* Safety Procedure P-01: The FloatSat will send a alert to the Ground Station 
+    and blink a red LED. The user must manually stop the FloatSat's rotation. 
+    When Control detects that the  FloatSat is not rotating anymore, it will 
+    turn off the reaction wheel to dissipate the accumulated momentum. The user 
+    must hold the FloatSat still while the LED is still blinking. When the RW 
+    speed reaches zero, normal operation resumes and the LED stops blinking */
+
+    // TODO: Have the Core read the state and blink the LED
+
+
+    switch (handle->g_control_config->control_state)
+    {
+    case CONTROL_STATE_NOMINAL:
+        return;
+        
+    case CONTROL_STATE_RW_SAT: // Set in the control loop
+        // Wait for the floatsat to be externally stopped (angular velocity near zero)
+        if( fabsf(imu_data->gyro.z) * RADS_TO_DEG < CONTROL_MIN_ANGULAR_VEL){
+            handle->g_control_config->control_state = CONTROL_STATE_RW_SAT_RECOVERY;
+            LOGI(LOG_TAG, "Entering RW_SAT_RECOVERY state");
+        }
+
+        break;
+
+    case CONTROL_STATE_RW_SAT_RECOVERY:
+        // deactivate the control and stop the reaction wheel
+        handle->g_control_config->control_active = false;
+        Motor_SetDutyCycle(handle->motor, 0.0f);
+
+        // Wait for the reaction wheel to stop and reactivate the control
+        if(is_stationary(handle->motor->current_speed, CONTROL_MIN_RW_SPEED)){
+            // Reset the controller
+            memset(handle->control_vars, 0, sizeof(control_vars_t));
+            
+            taskENTER_CRITICAL();
+            handle->g_control_config->control_state = CONTROL_STATE_NOMINAL;
+            handle->g_control_config->control_active = true;
+            taskEXIT_CRITICAL();
+
+            LOGI(LOG_TAG, "RW stopped, resuming normal operation");
+        }
+        break;
+
+    default:
+        break;
+    }
+
+}
+
+
+
+static void angular_vel_failsafe(control_handle_t *handle, const IMU_data_t *imu_data)
+{
+    static bool is_rec_from_max_w = false;
+    float w = imu_data->gyro.z * RADS_TO_DEG;
+
+    // Angular vel failsafe with hysteresis
+    if( fabsf(w) > CONTROL_MAX_ANGULAR_VEL && !is_rec_from_max_w){
+        LOGW(LOG_TAG, "Warning: Exceeded angular velocity. Resetting control to default values");
+        is_rec_from_max_w = true;
+
+        memset(handle->control_vars, 0, sizeof(control_vars_t));
+
+        taskENTER_CRITICAL();
+        handle->g_control_config->params = default_control_params;
+        handle->g_control_config->target_angle = 0.0f;
+        taskEXIT_CRITICAL();
+
+    }else if(fabsf(w) < CONTROL_MAX_ANGULAR_VEL - CONTROL_MAX_ANGULAR_VEL_HYST){
+        is_rec_from_max_w = false;
+    } 
+}
+
+/// @brief Determine if the floatsat it stationary. This is true if fabsf(w) < `threshold`
+/// for CONTROL_STATIONARY_TIMESTEPS timesteps
+/// @param w Current angular velocity in degrees
+/// @return true if fabsf(w) has been lower than `threshold` for CONTROL_STATIONARY_TIMESTEPS
+/// calls to this function
+static bool is_stationary(float w, float threshold)
+{
+    static uint32_t stationary_timesteps = 0U;
+    bool ret;
+
+    if(fabsf(w) < threshold){
+        stationary_timesteps++;
+    }else{
+        stationary_timesteps = 0U;
+    }
+    
+    if(stationary_timesteps > CONTROL_STATIONARY_TIMESTEPS){
+        ret = true;
+        stationary_timesteps = 0U;
+    }else{
+        ret = false;
+    }
+
+    return ret;
 
 }
 
@@ -240,7 +370,7 @@ static floatsat_err_t Control_EstimateOrientation(control_handle_t *handle, IMU_
 /// @param handle 
 /// @return 
 static floatsat_err_t Control_ComputeOutput(
-    const control_handle_t *handle, 
+    const control_handle_t *handle,
     const IMU_data_t *imu_data, 
     float *out, 
     control_data_t *debug_data_out)
@@ -248,42 +378,43 @@ static floatsat_err_t Control_ComputeOutput(
     if(!handle){
         return ERR_INVALID_ARG;
     }
-
-    float theta, e_theta, u_theta;
-    float w, w_ref, e_w;
-    float u_P, u, u_sat;
-    static float u_I = 0.0f, u_I_prev = 0.0f;
+    
     control_cascade_params_t *params = &handle->g_control_config->params;
-
-    w = imu_data->gyro.z * (180.0f / (float)M_PI );
+    control_vars_t *v = handle->control_vars;
+    // float theta, e_theta, u_theta;
+    // float w, w_ref, e_w;
+    // float u_P, u, u_sat;
+    // static float u_I = 0.0f, u_I_prev = 0.0f;    
+    v->w = imu_data->gyro.z * (RADS_TO_DEG);
 
     // Azimuth angle (Relative to X Axis)
-    theta   = atan2f(handle->current_orientation.y, handle->current_orientation.x) * (180.0f / (float)M_PI );
+    v->theta   = atan2f(handle->current_orientation.y, handle->current_orientation.x) * (180.0f / (float)M_PI );
     
-    e_theta = wrap_180(handle->g_control_config->target_angle - theta);
-    u_theta = params->k_theta * e_theta;
+    v->e_theta = wrap_180(handle->g_control_config->target_angle - v->theta);
+    v->u_theta = params->k_theta * v->e_theta;
 
-    w_ref   = saturate_symmetric(u_theta, CONTROL_MAX_ANGULAR_VEL);
-    e_w     = w_ref - w;
+    v->w_ref   = saturate_symmetric(v->u_theta, CONTROL_MAX_ANGULAR_VEL);
+    v->e_w     = v->w_ref - v->w;
 
-    u_P     = params->k_p * e_w;
-    u_I     = u_I_prev + params->k_i * ((float)CONTROL_LOOP_PERIOD_MS * 1e-3f) * e_w;
+    // TODO: Add integral saturation
+    v->u_P     = params->k_p * v->e_w;
+    v->u_I     = v->u_I_prev + params->k_i * ((float)CONTROL_LOOP_PERIOD_MS * 1e-3f) * v->e_w;
 
-    u       = u_P + u_I;
-    u_sat   = saturate_symmetric(u, CONTROL_MAX_PWM); 
+    v->u       = v->u_P + v->u_I;
+    v->u_sat   = saturate_symmetric(v->u, CONTROL_MAX_PWM); 
     
-    u_I_prev = u_I;
-    *out    = u_sat;
+    v->u_I_prev = v->u_I;
+    *out        = v->u_sat;
 
     if(debug_data_out){
         *debug_data_out = (control_data_t) {
-            .angle      = theta,
+            .angle      = v->theta,
             .angle_ref  = handle->g_control_config->target_angle,
 
-            .w          = w,
-            .w_ref      = w_ref,
+            .w          = v->w,
+            .w_ref      = v->w_ref,
 
-            .pwm_out    = u_sat
+            .pwm_out    = v->u_sat
         };
     }
 

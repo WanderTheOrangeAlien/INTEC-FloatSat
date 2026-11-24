@@ -19,6 +19,22 @@
 
 #define FLOATSAT_MULTIPLEXER_ADDR    0x70
 
+#define INIT_FLAG_IMU               (1U << 0)
+#define INIT_FLAG_MOTOR             (1U << 1)
+#define INIT_FLAG_CONTROL           (1U << 2)
+#define INIT_FLAG_TELEMETRY         (1U << 3)
+#define INIT_FLAG_TELECOMMAND       (1U << 4)
+#define INIT_FLAG_LIGHT_SENSOR      (1U << 5)
+#define INIT_FLAG_CORE              (1U << 6)
+#define INIT_FLAG_RTC               (1U << 7)
+#define INIT_FLAG_UTILITY           (1U << 8)
+
+#define INIT_MASK_ALL_PASSED (                              \
+      INIT_FLAG_IMU | INIT_FLAG_MOTOR | INIT_FLAG_CONTROL   \
+    | INIT_FLAG_TELEMETRY | INIT_FLAG_TELECOMMAND           \
+    | INIT_FLAG_LIGHT_SENSOR | INIT_FLAG_CORE               \
+    | INIT_FLAG_RTC | INIT_FLAG_UTILITY)                    
+
 
 // Structure to enclose all peripheral handles. This is required to cleanly
 // pass all the handles from main.c to floatsat_init.c
