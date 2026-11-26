@@ -151,7 +151,7 @@ typedef struct cmd_list_t {
 
 //@mission_id
 #define MISSION_ID_PLAYGROUND       0
-#define MISSION_ID_FOLLOW_SUN       1
+#define MISSION_ID_SUNCHASER        1
 #define MISSION_ID_PHOTO            2
 
 #define FLOATSAT_MISSION_AMOUNT     3           

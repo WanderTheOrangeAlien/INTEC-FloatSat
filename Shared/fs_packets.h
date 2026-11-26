@@ -20,21 +20,26 @@
 #define DEBUG_PACKET_ID_IMU         0x01
 #define DEBUG_PACKET_ID_CONTROL     0x02
 #define DEBUG_PACKET_ID_RTC         0x03
+#define DEBUG_PACKET_ID_LIGHT       0x04
 
 
 #define INFO_CHUNK_DATA_SIZE        32U
 
 typedef struct __attribute__((packed)) telemetry_packet_fast_t {
     Vec3_t orientation;
+    float angular_vel;
     float rw_speed;
+    float theta_ref;
     uint16_t end_marker;
 }telemetry_packet_fast_t;
 
 
-
 typedef struct __attribute__((packed)) telemetry_packet_slow_t {
-    float temp;
-    float v_batt;
+    uint8_t                     current_mission;
+    control_cascade_params_t    control_params;
+    uint8_t                     sunchaser_state;
+    float                       light_r;
+    float                       light_l;
     uint16_t end_marker;
     // TODO: Add Subsystem health indicators
 
@@ -45,9 +50,10 @@ typedef struct __attribute__((packed)) telemetry_packet_debug_t {
     uint8_t     debug_id;
     timestamp_t timestamp;
     union {
-        IMU_data_t      imu_data;
-        control_data_t  control_data;
-        floatsat_time_t rtc_time;
+        IMU_data_t              imu_data;
+        control_data_t          control_data;
+        floatsat_time_t         rtc_time;
+        light_control_data_t    light_data;
     };
     uint16_t end_marker;
     
@@ -88,9 +94,13 @@ typedef struct __attribute__((packed)) info_packet_chunk_t {
 
 
 typedef struct __attribute__((packed)) camera_packet_header_t {
-    uint8_t type;
-    uint8_t nchunks;
-    uint16_t timeout_ms; // Maximum time between two consecutive chunks
+    uint8_t             type;
+    uint8_t             nchunks;
+    uint16_t            timeout_ms; // Maximum time between two consecutive chunks
+    uint8_t             photo_id;
+    floatsat_time_t     timestamp;
+    float               yaw;
+    uint8_t             resolution;
 }camera_packet_header_t;
 
 

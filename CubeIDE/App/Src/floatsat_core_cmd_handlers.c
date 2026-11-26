@@ -44,7 +44,10 @@ floatsat_err_t Core_SetControl(floatsat_core_t *handle, floatsat_cmd_t *cmd)
     }
 
     if(cmd->control_args.action_flags & CMD_CONTROL_FLAG_ANGLE){
+        taskENTER_CRITICAL();
+        handle->g_control_config->control_variable = CONTROL_VAR_ANGLE;
         handle->g_control_config->target_angle = cmd->control_args.angle;
+        taskEXIT_CRITICAL();
         LOGI(LOG_TAG,"Changed target angle to %.2f",(double)handle->g_control_config->target_angle);
     }
 

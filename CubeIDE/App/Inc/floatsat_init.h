@@ -36,6 +36,7 @@
     | INIT_FLAG_RTC | INIT_FLAG_UTILITY)                    
 
 
+
 // Structure to enclose all peripheral handles. This is required to cleanly
 // pass all the handles from main.c to floatsat_init.c
 typedef struct floatsat_periph_t {
@@ -50,6 +51,8 @@ typedef struct floatsat_periph_t {
 
     GPIO_TypeDef            *esp_en_port;
     uint16_t                esp_en_pin;
+
+    status_leds_t           status_leds;
 
     // Functions and other info
 

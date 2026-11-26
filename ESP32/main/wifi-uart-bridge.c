@@ -8,6 +8,8 @@
 #include "fs_packets.h"
 #include "mdns.h"
 
+#include "freertos/queue.h"
+
 // #include "Arducam_OV2640.h"
 
 // #define WIFI_DISABLE    1
@@ -72,6 +74,7 @@ static uart_module_handle_t uart_handle = {
     }
 };
 
+
 #ifdef ARDUCAM_OV2640_H
 ov2640_handle_t camera = {
     .i2c_config = {
@@ -92,8 +95,10 @@ ov2640_handle_t camera = {
     }
 };
 #endif
-TaskHandle_t camera_task_handle = NULL;
-SemaphoreHandle_t camera_read_semphr = NULL;
+static uint32_t photo_id                = 0U;
+QueueHandle_t camera_cmd_queue          = NULL;
+TaskHandle_t camera_task_handle         = NULL;
+SemaphoreHandle_t camera_read_semphr    = NULL;
 
 static ws_handle_t ws_handle = {
     .on_rx = on_ws_rx
@@ -125,15 +130,16 @@ static void on_uart_rx(uint8_t *buffer, size_t len, uint8_t packet_type)
     // printf("Sending UART data through websocket. (%zu) bytes!\n",len);
     // print_hex(buffer, len);
     // printf("\n");
+    if(!initialized){
+        return;
+    }
 
     if(packet_type == PACKET_TYPE_CMD){
         handle_esp_command((esp_cmd_t*)&buffer[1]);
         return;
     }
 
-    if(!initialized){
-        return;
-    }
+
 
 
 #ifndef WIFI_DISABLE
@@ -153,8 +159,8 @@ static void on_uart_info(uint8_t *info_buffer, size_t len)
 
 static void handle_esp_command(esp_cmd_t *cmd)
 {
-    ESP_LOGI(LOG_TAG,"Received command {ID: 0x%02x. Amount: %u}.",
-        cmd->cmd_id,cmd->args.photo_amount);
+    ESP_LOGI(LOG_TAG,"Received command ID 0x%02x.",
+        cmd->cmd_id);
 
     if(!initialized){
         ESP_LOGE(LOG_TAG,"Error: Bridge not initialized");
@@ -162,9 +168,10 @@ static void handle_esp_command(esp_cmd_t *cmd)
     }
 
     if(cmd->cmd_id == EXT_CMD_TAKE_PHOTO){
-        ESP_LOGI(LOG_TAG,"Taking %u photos...",cmd->args.photo_amount);
+        ESP_LOGI(LOG_TAG,"Taking %u photos...",cmd->photo_args.photo_amount);
 
-        xTaskNotify(camera_task_handle, cmd->args.photo_amount, eSetValueWithOverwrite);
+        xQueueSend(camera_cmd_queue, cmd, 100U);
+        // xTaskNotify(camera_task_handle, cmd->args.photo_amount, eSetValueWithOverwrite);
     }
 
 }
@@ -173,9 +180,10 @@ static void Camera_Task(void *params)
 {
     (void)params;
     uint8_t *chunk_buffer = NULL;
-    size_t chunk_idx = 0U, remaining = 0U, xfer_len = 0U;
+    size_t chunk_idx = 0U, remaining = 0U, xfer_len = 0U, photo_idx = 0U;
     size_t loop_iters = 0U;
     uint32_t notification_val = 0U;
+    esp_cmd_t current_cmd = {0};
 
     esp_err_t ret = ESP_OK;
 
@@ -191,83 +199,106 @@ static void Camera_Task(void *params)
     }
 
     while(1){
-        notification_val = ulTaskNotifyTake(pdFALSE, portMAX_DELAY);
-        
-        ESP_LOGI(LOG_TAG, "taking photo #%u", notification_val);
+        // notification_val = ulTaskNotifyTake(pdFALSE, portMAX_DELAY);
 
+        xQueueReceive(camera_cmd_queue, &current_cmd, portMAX_DELAY);
+        photo_idx = 0;
+
+        ESP_LOGI(LOG_TAG, 
+            "Received photo command: {\n"
+                "\tyaw = %f\n"
+                "\ttimestamp = %02u:%02u:%02u\n"
+                "\tphoto_amount = %u\n"
+            "}",
+            current_cmd.photo_args.yaw, 
+            current_cmd.photo_args.timestamp.hours, current_cmd.photo_args.timestamp.minutes, current_cmd.photo_args.timestamp.seconds, 
+            current_cmd.photo_args.photo_amount    
+        );
+
+
+        while(photo_idx++ < current_cmd.photo_args.photo_amount)
+        {    
+            ESP_LOGI(LOG_TAG, "taking photo #%u", notification_val);
+            
 #ifdef ARDUCAM_OV2640_H
-        ret = OV2640_Capture(&camera, &remaining);
-        if(ret != ESP_OK){
-            ESP_LOGE(LOG_TAG,"(Camera Task) Camera capture failed");
-            goto err;
-        }
+            ret = OV2640_Capture(&camera, &remaining);
+            if(ret != ESP_OK){
+                ESP_LOGE(LOG_TAG,"(Camera Task) Camera capture failed");
+                goto err;
+            }
 #else
-        remaining = (size_t)(img1_jpg_end - img1_jpg_start);
+            remaining = (size_t)(img1_jpg_end - img1_jpg_start);
 #endif
-    
-        chunk_idx = 0U;
-        loop_iters = 0U;
 
-        // Send the header
-        camera_packet_header_t header = {
-            .type       = PACKET_TYPE_CAMERA_HEADER,
-            .nchunks    = (remaining % CAMERA_CHUNK_SIZE == 0) ?
-                            remaining / CAMERA_CHUNK_SIZE:
-                            remaining / CAMERA_CHUNK_SIZE + 1,            
-            .timeout_ms = CAMERA_CHUNK_TIMEOUT_MS,
-        };
+            chunk_idx = 0U;
+            loop_iters = 0U;
 
-        Websocket_Send(&ws_handle, (uint8_t*)&header, sizeof(header), HTTPD_WS_TYPE_BINARY);
+            // Send the header
+            camera_packet_header_t header = {
+                .type       = PACKET_TYPE_CAMERA_HEADER,
+                .nchunks    = (remaining % CAMERA_CHUNK_SIZE == 0) ?
+                    remaining / CAMERA_CHUNK_SIZE:
+                    remaining / CAMERA_CHUNK_SIZE + 1,            
+                .timeout_ms = CAMERA_CHUNK_TIMEOUT_MS,
 
-        while(remaining > 0U && ++loop_iters <= CAMERA_READ_MAX_LOOP_ITERS){
-
-            xfer_len = (remaining >= CAMERA_CHUNK_SIZE) ? CAMERA_CHUNK_SIZE : remaining;
-
-#ifdef ARDUCAM_OV2640_H
-            // Read image data and store it after the chunk header
-            ret = OV2640_ReadChunk( &camera, 
-                                    &chunk_buffer[offsetof(camera_packet_chunk_t, data)], 
-                                    xfer_len, &remaining);
-            if(ret != ESP_OK){
-                ESP_LOGE(LOG_TAG,"(Camera Task) Error in chunk #%u", chunk_idx);
-                goto err;
-            }
-#else
-            memcpy( &chunk_buffer[offsetof(camera_packet_chunk_t, data)], 
-                    &img1_jpg_start[CAMERA_CHUNK_SIZE * chunk_idx],
-                     xfer_len);
-            remaining -= xfer_len;     
-#endif            
-            // Create the chunk header
-            camera_packet_chunk_t chunk_header = {
-                .type   = PACKET_TYPE_CAMERA_CHUNK,
-                .index  = chunk_idx,
-                .len    = xfer_len,
+                .photo_id   = photo_id++,
+                #ifdef ARDUCAM_OV2640_H
+                .resolution = camera.resolution,
+                #endif
+                .timestamp  = current_cmd.photo_args.timestamp,
+                .yaw        = current_cmd.photo_args.yaw,
             };
-            // Copy the header at the start of the buffer
-            memcpy(chunk_buffer, &chunk_header, offsetof(camera_packet_chunk_t, data));
+        
+            Websocket_Send(&ws_handle, (uint8_t*)&header, sizeof(header), HTTPD_WS_TYPE_BINARY);
+        
+            while(remaining > 0U && ++loop_iters <= CAMERA_READ_MAX_LOOP_ITERS){
 
-            // The callback releases the semaphore
-            ret = Websocket_SendNoCopy(&ws_handle, 
-                                 chunk_buffer, xfer_len + offsetof(camera_packet_chunk_t, data), 
-                                 HTTPD_WS_TYPE_BINARY,
-                                 on_camera_chunk_send, camera_read_semphr);
-            
-            if(ret != ESP_OK){
-                ESP_LOGE(LOG_TAG,"(Camera Task) Error sending chunk #%u", chunk_idx);
-                goto err;
+                xfer_len = (remaining >= CAMERA_CHUNK_SIZE) ? CAMERA_CHUNK_SIZE : remaining;
+                
+                #ifdef ARDUCAM_OV2640_H
+                // Read image data and store it after the chunk header
+                ret = OV2640_ReadChunk( &camera, 
+                    &chunk_buffer[offsetof(camera_packet_chunk_t, data)], 
+                    xfer_len, &remaining);
+                    if(ret != ESP_OK){
+                        ESP_LOGE(LOG_TAG,"(Camera Task) Error in chunk #%u", chunk_idx);
+                    goto err;
+                }
+                #else
+                memcpy( &chunk_buffer[offsetof(camera_packet_chunk_t, data)], 
+                &img1_jpg_start[CAMERA_CHUNK_SIZE * chunk_idx],
+                        xfer_len);
+                        remaining -= xfer_len;     
+                        #endif            
+                        // Create the chunk header
+                camera_packet_chunk_t chunk_header = {
+                    .type   = PACKET_TYPE_CAMERA_CHUNK,
+                    .index  = chunk_idx,
+                    .len    = xfer_len,
+                };
+                // Copy the header at the start of the buffer
+                memcpy(chunk_buffer, &chunk_header, offsetof(camera_packet_chunk_t, data));
+                
+                // The callback releases the semaphore
+                ret = Websocket_SendNoCopy(&ws_handle, 
+                    chunk_buffer, xfer_len + offsetof(camera_packet_chunk_t, data), 
+                    HTTPD_WS_TYPE_BINARY,
+                    on_camera_chunk_send, camera_read_semphr);
+                    
+                if(ret != ESP_OK){
+                    ESP_LOGE(LOG_TAG,"(Camera Task) Error sending chunk #%u", chunk_idx);
+                    goto err;
+                }
+                
+                
+                // Wait for the sempahore to be available
+                if(xSemaphoreTake(camera_read_semphr, pdMS_TO_TICKS(CAMERA_CHUNK_TIMEOUT_MS))){
+                    ++chunk_idx;
+                }else{
+                    ESP_LOGE(LOG_TAG,"(Camera Task) Error sending chunk #%u  (Sempahore Timeout)", chunk_idx);
+                    goto err;
+                }    
             }
-
-
-            // Wait for the sempahore to be available
-            if(xSemaphoreTake(camera_read_semphr, pdMS_TO_TICKS(CAMERA_CHUNK_TIMEOUT_MS))){
-                ++chunk_idx;
-            }else{
-                ESP_LOGE(LOG_TAG,"(Camera Task) Error sending chunk #%u  (Sempahore Timeout)", chunk_idx);
-                goto err;
-            }
-            
-            
         }
 
         if(loop_iters >= CAMERA_READ_MAX_LOOP_ITERS){
@@ -287,8 +318,6 @@ static void Camera_Task(void *params)
         ulTaskNotifyValueClear(NULL, UINT_MAX);
         UART_SendFloatsatCmd(&uart_handle, "sys --invoke-cb on_photo_fail");
         ESP_LOGE(LOG_TAG,"Photo failed!");
-
-
     }
 
 }
@@ -322,6 +351,7 @@ void app_main(void)
     ESP_ERROR_CHECK(OV2640_Init(&camera));
 #endif
     camera_read_semphr = xSemaphoreCreateBinary();
+    camera_cmd_queue = xQueueCreate(5U, sizeof(esp_cmd_t));
     xTaskCreate(Camera_Task, "CAMERA", CAMERA_TASK_STACK_SIZE, NULL, CAMERA_TASK_PRIO, &camera_task_handle);
 
 #ifndef WIFI_DISABLE

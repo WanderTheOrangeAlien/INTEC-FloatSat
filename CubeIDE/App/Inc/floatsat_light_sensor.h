@@ -6,7 +6,6 @@
 #include "VEML770_stm32.h"
 #include "TCA9548_stm32.h"
 
-#define FLOATSAT_LIGHT_SENSOR_AMOUNT    3
 
 #define LIGHT_SENSOR_IDX_LEFT       0
 #define LIGHT_SENSOR_IDX_CENTER     1

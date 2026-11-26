@@ -30,7 +30,7 @@ static const cmd_list_t allowed_mission_cmds[] = {
                 CMD_ID_MOTOR_PWM_SET, 
                 CMD_ID_SYSCTL),
 
-    [MISSION_ID_FOLLOW_SUN] =
+    [MISSION_ID_SUNCHASER] =
         CMD_LIST(CMD_ID_CONTROL_INFO, 
                 CMD_ID_MISSION_INFO, CMD_ID_MISSION_SET, 
                 CMD_ID_IMU_READ, 

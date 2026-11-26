@@ -95,7 +95,7 @@ void Task_TelemetryFn(void *args)
         if(handle->packet_type_mask & PACKET_MASK_FAST){
 
             if(handle->packet_type_mask & PACKET_MASK_SLOW){
-                handle->current_packet.type = PACKET_TYPE_FAST;
+                handle->current_packet.type = PACKET_TYPE_EXTENDED;
             }else{
                 handle->current_packet.type = PACKET_TYPE_FAST;
             }

@@ -15,6 +15,9 @@
 #include "fs_commands.h"
 #include "floatsat_light_sensor.h"
 
+#define CORE_SLOW_TELEEMTRY_PERIOD_MS       100U
+#define CORE_LED_RED_BLINK_PERIOD_MS            250U
+
 /* @action_flags */
 #define CORE_ACTION_UPDATE_DEBUG            (1U << 0)
 
@@ -36,6 +39,20 @@
 #define MISSION_STATE_PHOTO_MOVING          0x01
 #define MISSION_STATE_PHOTO_BUSY            0x02
 
+#define CORE_MIN_LIGHT_THRS                     150U
+#define CORE_SUNCHASER_ANGULAR_VEL              36.0f // deg/s
+#define CORE_SUNCHASER_EPSILON                  0.1f
+#define CORE_SUNCHASER_K                        0.01f
+#define CORE_SUNCHASER_MIN_DELTA_E              0.01f
+#define CORE_SUNCHASER_MIN_STABLE_TIME_MS       2000U
+#define CORE_SUNCHASER_LOSS_TIMEOUT_MS          500U
+
+#define MISSION_STATE_SUN_SEARCH          0x00
+#define MISSION_STATE_SUN_ACQUIRE         0x01
+#define MISSION_STATE_SUN_TRACK           0x02
+#define MISSION_STATE_SUN_LOST            0x03
+
+
 typedef struct floatsat_core_t {
     
     photo_info_t        *photo_arr;
@@ -50,18 +67,21 @@ typedef struct floatsat_core_t {
     
     uint8_t             current_mission;         // See @mission_id
     uint8_t             next_mission;
+    float               light_readings[FLOATSAT_LIGHT_SENSOR_AMOUNT];
 
     uint32_t            action_flags;       /* These flags are set through commands and indicate that 
                                                 a lazy action (one done after critical ones) is
                                                 pending. For instance, changing the mission */
     uint8_t             debug_id;
-    uint8_t             mission_state;      /*  States internal to the current mission. 
-                                                Right now only for the photo mission*/
+    telemetry_packet_debug_t current_debug_packet;
+    uint8_t             mission_state;      /*  States internal to the current mission*/
 
     TaskHandle_t        task_handle;
     floatsat_cmd_t      current_cmd;
     telemetry_handle_t  *telementry_handle;
     rtc_handle_t        *rtc;
+
+    status_leds_t       status_leds;
 
     /* Shared resources */
     QueueHandle_t       cmd_queue;          // Receives parsed messages here

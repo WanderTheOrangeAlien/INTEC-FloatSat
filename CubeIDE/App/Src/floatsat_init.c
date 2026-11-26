@@ -273,6 +273,7 @@ floatsat_err_t FloatSat_Init(const floatsat_periph_t *periph,
     update_init_flag(ret, &init_mask, INIT_FLAG_TELECOMMAND);
 
     /* ----------------------------- Core ----------------------------- */
+    core_handle.status_leds = periph->status_leds;
     ret = Core_Init(&core_handle);
     LOG_ON_ERR(ret, LOG_TAG, "Error initializing Supervisor (aka Core). Error code: 0x%04x", ret);
     update_init_flag(ret, &init_mask, INIT_FLAG_CORE);

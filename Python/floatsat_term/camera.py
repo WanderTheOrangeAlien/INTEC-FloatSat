@@ -48,7 +48,10 @@ class CameraReceiver:
                       f"({len(self._chunks)}/{self._header.nchunks} chunks)")
             self._reset()
         self._header = header
-        self._log(f"{NAME} header: expecting {header.nchunks} chunks, "
+        self._log(f"{NAME} header: photo {header.photo_id} taken "
+                  f"{header.hours:02d}:{header.minutes:02d}:{header.seconds:02d}, "
+                  f"yaw {header.yaw:.2f}, resolution {header.resolution}; "
+                  f"expecting {header.nchunks} chunks, "
                   f"timeout {header.timeout_ms} ms between chunks")
         if header.nchunks == 0:
             self._log(f"{NAME} header says 0 chunks, nothing to receive")
@@ -101,7 +104,7 @@ class CameraReceiver:
         if not image.rstrip(b"\x00").endswith(b"\xff\xd9"):
             self._problems.append("data does not end with the JPEG EOI marker (FF D9)")
         self._dir.mkdir(parents=True, exist_ok=True)
-        path = self._dir / f"photo_{datetime.now():%Y%m%d_%H%M%S_%f}.jpg"
+        path = self._dir / f"photo{self._header.photo_id:03d}_{datetime.now():%Y%m%d_%H%M%S_%f}.jpg"
         path.write_bytes(image)
         self._log(f"{NAME} image complete: {self._header.nchunks} chunks, "
                   f"{len(image)} bytes, saved to {path}")

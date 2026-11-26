@@ -42,11 +42,15 @@ floatsat_err_t Control_Init(control_handle_t *handle)
 
     GOTO_ON_ERR_LOG(DataBus_GetWriter_IMU(&handle->data_bus_writer),err, ret,
             LOG_TAG, "Could not acquire data bus writer");
-    handle->g_control_config->debug_id = DEBUG_PACKET_ID_CONTROL;
-    handle->g_control_config->params = default_control_params;
-    handle->g_control_config->control_active = false;
-    handle->g_control_config->control_state = CONTROL_STATE_NOMINAL;
 
+    handle->g_control_config->control_internal  = handle->control_vars;
+
+    handle->g_control_config->control_state     = CONTROL_STATE_NOMINAL;
+    handle->g_control_config->params            = default_control_params;
+    handle->g_control_config->control_active    = false;
+    handle->g_control_config->control_variable  = CONTROL_VAR_ANGLE;
+    handle->g_control_config->debug_id          = DEBUG_PACKET_ID_CONTROL;
+            
     memset(handle->control_vars, 0, sizeof(control_vars_t));
 
 #ifdef FUSION_H
@@ -130,7 +134,9 @@ void Task_ControlFn(void *args)
         
         telemetry_packet_fast_t packet = {
             .orientation    = handle->current_orientation,
-            .rw_speed       = handle->motor->current_speed
+            .angular_vel    = imu_data.gyro.z * RADS_TO_DEG,
+            .rw_speed       = handle->motor->current_speed, // In rev/s
+            .theta_ref      = handle->g_control_config->target_angle
         };
 
         // TODO: I don't know if this is proper when having the data bus. It's a direct form of communication, though
@@ -177,7 +183,7 @@ static void handle_rw_saturation(control_handle_t *handle, const IMU_data_t *imu
         
     case CONTROL_STATE_RW_SAT: // Set in the control loop
         // Wait for the floatsat to be externally stopped (angular velocity near zero)
-        if( fabsf(imu_data->gyro.z) * RADS_TO_DEG < CONTROL_MIN_ANGULAR_VEL){
+        if( is_stationary(imu_data->gyro.z * RADS_TO_DEG, CONTROL_MIN_ANGULAR_VEL)){
             handle->g_control_config->control_state = CONTROL_STATE_RW_SAT_RECOVERY;
             LOGI(LOG_TAG, "Entering RW_SAT_RECOVERY state");
         }
@@ -226,6 +232,7 @@ static void angular_vel_failsafe(control_handle_t *handle, const IMU_data_t *imu
         taskENTER_CRITICAL();
         handle->g_control_config->params = default_control_params;
         handle->g_control_config->target_angle = 0.0f;
+        handle->g_control_config->control_variable = CONTROL_VAR_ANGLE;
         taskEXIT_CRITICAL();
 
     }else if(fabsf(w) < CONTROL_MAX_ANGULAR_VEL - CONTROL_MAX_ANGULAR_VEL_HYST){
@@ -381,19 +388,23 @@ static floatsat_err_t Control_ComputeOutput(
     
     control_cascade_params_t *params = &handle->g_control_config->params;
     control_vars_t *v = handle->control_vars;
-    // float theta, e_theta, u_theta;
-    // float w, w_ref, e_w;
-    // float u_P, u, u_sat;
-    // static float u_I = 0.0f, u_I_prev = 0.0f;    
-    v->w = imu_data->gyro.z * (RADS_TO_DEG);
 
-    // Azimuth angle (Relative to X Axis)
+    v->w = imu_data->gyro.z * (RADS_TO_DEG);
     v->theta   = atan2f(handle->current_orientation.y, handle->current_orientation.x) * (180.0f / (float)M_PI );
     
-    v->e_theta = wrap_180(handle->g_control_config->target_angle - v->theta);
-    v->u_theta = params->k_theta * v->e_theta;
+    if(handle->g_control_config->control_variable == CONTROL_VAR_ANGLE){
 
-    v->w_ref   = saturate_symmetric(v->u_theta, CONTROL_MAX_ANGULAR_VEL);
+        // Azimuth angle (Relative to X Axis)
+        
+        v->e_theta = wrap_180(handle->g_control_config->target_angle - v->theta);
+        v->u_theta = params->k_theta * v->e_theta;
+        
+        v->w_ref   = saturate_symmetric(v->u_theta, CONTROL_MAX_ANGULAR_VEL);
+    }else if(handle->g_control_config->control_variable == CONTROL_VAR_ANGULAR_VEL){
+        
+        v->w_ref = handle->g_control_config->target_w;
+    }
+
     v->e_w     = v->w_ref - v->w;
 
     // TODO: Add integral saturation

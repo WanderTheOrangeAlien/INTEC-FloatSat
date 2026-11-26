@@ -10,11 +10,18 @@ static floatsat_err_t Core_HandleCmd(floatsat_core_t *handle, floatsat_cmd_t *cm
 static floatsat_err_t Core_ChangeMission(floatsat_core_t *handle);
 
 static floatsat_err_t Core_Mission_Playground(floatsat_core_t *handle);
+static floatsat_err_t Core_Mission_Sunchaser(floatsat_core_t *handle);
+static bool is_light_acquired(float e_light, float min_delta, uint32_t dt_ms, uint32_t min_stable_time);
+static bool light_detected(float S[3], float threshold);
+static floatsat_err_t Core_OnLightAcquired(floatsat_core_t *handle);
+
 
 static floatsat_err_t Core_Update(floatsat_core_t *handle);
 static floatsat_err_t Core_UpdateActions(floatsat_core_t *handle);
 static floatsat_err_t Core_DebugUpdate(floatsat_core_t *handle);
+static floatsat_err_t Core_UpdateStatusLeds(floatsat_core_t *handle);
 static floatsat_err_t Core_SendDebug(floatsat_core_t *handle);
+static floatsat_err_t Core_SendTelemetry(floatsat_core_t *handle);
 
 static floatsat_err_t Core_UpdatePhotoAlarm(floatsat_core_t *handle);
 static void Core_OnPhotoAlarm(rtc_handle_t *rtc);
@@ -23,6 +30,10 @@ static void Core_OnPhotoFail(floatsat_core_t *handle);
 static floatsat_err_t get_next_photo_index(const floatsat_core_t *handle, int *index);
 
 static floatsat_err_t Core_TakePhoto(floatsat_core_t *handle);
+
+static void Core_BlinkLED(gpio_info_t *led, uint32_t blink_time_ms);
+
+
 
 static const char LOG_TAG[] = "CORE";
 
@@ -85,6 +96,7 @@ void Task_CoreFn(void *args)
 
 
         Core_Update(handle);
+        Core_SendTelemetry(handle);
 
 
         Core_SendDebug(handle);
@@ -100,21 +112,27 @@ static floatsat_err_t Core_Update(floatsat_core_t *handle)
     switch (handle->current_mission)
     {
     case MISSION_ID_PHOTO:
-        
-        // Check for
+        // The mission is handled asynchronously.    
+
+        // Check for timeout
         if(handle->mission_state == MISSION_STATE_PHOTO_BUSY &&
-            xTaskGetTickCount() > handle->photo_deadline_tick){
+            xTaskGetTickCount() > handle->photo_deadline_tick)
+        {
             LOGE(LOG_TAG,"Photo timeout exceeded");
             handle->photo_deadline_tick = portMAX_DELAY;
             Core_OnPhotoFail(handle);
         }
-
-
         break;
     
+    case MISSION_ID_SUNCHASER:
+        LOG_ON_ERR(Core_Mission_Sunchaser(handle),
+            LOG_TAG, "Error in mission update: SUNCHASER. ret = 0x%04x", ret);
+
     default:
         break;
     }
+
+    Core_UpdateStatusLeds(handle);
 
     // If the command requested an action, perform it at the end
     if(handle->action_flags != 0U){
@@ -194,7 +212,58 @@ err:
     return ret;
 }
 
-#pragma region REGION_DEBUG
+static floatsat_err_t Core_UpdateStatusLeds(floatsat_core_t *handle)
+{
+
+    // Flash Red Led during reaction wheel saturation
+    if(handle->g_control_config->control_state == CONTROL_STATE_RW_SAT || 
+        handle->g_control_config->control_state == CONTROL_STATE_RW_SAT_RECOVERY)
+    {
+        Core_BlinkLED(&handle->status_leds.led_red, CORE_LED_RED_BLINK_PERIOD_MS);
+    }else{
+        HAL_GPIO_WritePin(  handle->status_leds.led_red.port,
+                            handle->status_leds.led_red.gpio_num, 
+                            GPIO_PIN_RESET);
+
+        HAL_GPIO_WritePin(  handle->status_leds.led_green.port,
+                            handle->status_leds.led_green.gpio_num, 
+                            GPIO_PIN_SET);
+    }
+
+
+    return ERR_OK;
+}
+
+#pragma region TELEMETRY
+static floatsat_err_t Core_SendTelemetry(floatsat_core_t *handle)
+{
+    if(!handle){
+        return ERR_INVALID_ARG;
+    }
+
+    static uint32_t last_ms = 0U;
+    uint32_t now_ms = HAL_GetTick();
+
+    if(now_ms < last_ms + CORE_SLOW_TELEEMTRY_PERIOD_MS){
+        return ERR_OK;
+    }
+    last_ms = now_ms;
+
+    telemetry_packet_slow_t packet = {
+        .current_mission    = handle->current_mission,
+        .control_params     = handle->g_control_config->params,
+    };
+
+
+    if(handle->current_mission == MISSION_ID_SUNCHASER){
+        packet.sunchaser_state = handle->mission_state;
+        packet.light_l         = handle->light_readings[LIGHT_SENSOR_IDX_LEFT];
+        packet.light_r         = handle->light_readings[LIGHT_SENSOR_IDX_RIGHT];
+    }
+
+    return Telemetry_AddSlow(handle->telementry_handle, &packet);
+}
+
 
 static floatsat_err_t Core_DebugUpdate(floatsat_core_t *handle)
 {
@@ -238,6 +307,18 @@ static floatsat_err_t Core_SendDebug(floatsat_core_t *handle)
             Telemetry_AddDebug(handle->telementry_handle,&packet);
         }
         break;
+    case DEBUG_PACKET_ID_LIGHT:
+
+        // Packet is set by Core_Mission_Sunchaser when state == MISSION_STATE_SUN_ACQUIRE
+        // Otherwise, zero it out
+        if(handle->mission_state != MISSION_STATE_SUN_ACQUIRE){
+            memset(&handle->current_debug_packet, 0, sizeof(telemetry_packet_debug_t));
+            handle->current_debug_packet.type       = PACKET_TYPE_DEBUG;
+            handle->current_debug_packet.debug_id   = DEBUG_PACKET_ID_LIGHT;
+        }
+        Telemetry_AddDebug(handle->telementry_handle, &handle->current_debug_packet);
+        break;
+        
     
     default:
         break;
@@ -246,6 +327,7 @@ static floatsat_err_t Core_SendDebug(floatsat_core_t *handle)
 
     return ERR_OK;
 }
+
 #pragma endregion
 
 #pragma region PHOTO
@@ -347,6 +429,7 @@ static void Core_OnPhotoAlarm(rtc_handle_t *rtc)
     switch (handle->mission_state)
     {
     case MISSION_STATE_PHOTO_IDLE:
+        handle->g_control_config->control_variable = CONTROL_VAR_ANGLE;
         handle->g_control_config->target_angle = handle->next_photo.angle;
 
         handle->mission_state = MISSION_STATE_PHOTO_MOVING;
@@ -367,21 +450,27 @@ static void Core_OnPhotoAlarm(rtc_handle_t *rtc)
 static floatsat_err_t Core_TakePhoto(floatsat_core_t *handle)
 {
     // The state should be BUSY when entering this function
+    if(handle->mission_state != MISSION_STATE_PHOTO_BUSY){
+        LOGE(LOG_TAG,"Tried to take a photo but mission state was not BUSY");
+        return ERR_INVALID_ARG;
+    }
 
     telemetry_packet_cmd_t cmd = {
         .type = PACKET_TYPE_CMD,
         .cmd = {
             .cmd_id = EXT_CMD_TAKE_PHOTO,
-            .args.photo_amount = handle->next_photo.amount
+            .photo_args = {
+                .photo_amount   = handle->next_photo.amount,
+                .yaw            = handle->next_photo.angle,
+                .timestamp      = handle->next_photo.time
+            },
         },
     };
 
     handle->photo_deadline_tick = xTaskGetTickCount() 
         + pdMS_TO_TICKS(CORE_PHOTO_TIMEOUT_MS) * handle->next_photo.amount;
         
-    Telemetry_AddCommand(handle->telementry_handle, &cmd);
-
-    return ERR_OK;
+    return Telemetry_AddCommand(handle->telementry_handle, &cmd);
 }
 
 static void Core_OnPhotoFinish(floatsat_core_t *handle)
@@ -413,6 +502,10 @@ static void Core_OnPhotoFail(floatsat_core_t *handle)
 }
 
 
+#pragma endregion
+
+#pragma region MISSIONS
+
 static floatsat_err_t Core_ChangeMission(floatsat_core_t *handle)
 {
 
@@ -423,7 +516,7 @@ static floatsat_err_t Core_ChangeMission(floatsat_core_t *handle)
     switch (handle->current_mission)
     {
     case MISSION_ID_PLAYGROUND:
-    case MISSION_ID_FOLLOW_SUN:
+    case MISSION_ID_SUNCHASER:
 
         break;
 
@@ -439,11 +532,27 @@ static floatsat_err_t Core_ChangeMission(floatsat_core_t *handle)
 
     switch (handle->next_mission)
     {
-    case MISSION_ID_PHOTO:
     case MISSION_ID_PLAYGROUND:
         // Reset control angle
+        taskENTER_CRITICAL();
         handle->g_control_config->target_angle = 0.0f;
+        handle->g_control_config->control_variable = CONTROL_VAR_ANGLE;
+        taskEXIT_CRITICAL();
+
+
         break;
+    case MISSION_ID_PHOTO:
+        // Reset control angle
+        taskENTER_CRITICAL();
+        handle->g_control_config->target_angle = 0.0f;
+        handle->g_control_config->control_variable = CONTROL_VAR_ANGLE;
+        taskEXIT_CRITICAL();
+        handle->mission_state = MISSION_STATE_PHOTO_IDLE;
+        
+        break;
+        
+    case MISSION_ID_SUNCHASER:
+        handle->mission_state = MISSION_STATE_SUN_SEARCH;
 
     default:
         break;
@@ -453,8 +562,6 @@ static floatsat_err_t Core_ChangeMission(floatsat_core_t *handle)
 
     return ERR_OK;
 }
-
-#pragma endregion
 
 
 __attribute__((unused))
@@ -468,6 +575,165 @@ static floatsat_err_t Core_Mission_Playground(floatsat_core_t *handle)
 
     return ERR_OK;
 }
+
+static floatsat_err_t Core_Mission_Sunchaser(floatsat_core_t *handle)
+{
+    if(!handle){
+        return ERR_INVALID_ARG;
+    }
+
+    floatsat_err_t ret = ERR_OK;
+    control_config_t *control = handle->g_control_config;
+
+    static uint32_t last_acquire_check_ms = 0U, light_loss_ms = 0U;
+
+    GOTO_ON_ERR(LightSensor_ReadAll(handle->light_sensor, handle->light_readings), err, ret);
+
+    switch (handle->mission_state)
+    {
+    case MISSION_STATE_SUN_SEARCH:{
+
+        // Rotate at a fixed rate until a light is detected
+        taskENTER_CRITICAL();
+        control->control_variable = CONTROL_VAR_ANGULAR_VEL;
+        control->target_w = CORE_SUNCHASER_ANGULAR_VEL;
+        taskEXIT_CRITICAL();
+        
+        if(light_detected(handle->light_readings, CORE_MIN_LIGHT_THRS)){
+            // Transition to the acquire state
+            handle->mission_state = MISSION_STATE_SUN_ACQUIRE;
+            
+            // Hold current position
+            taskENTER_CRITICAL();
+            control->control_variable   = CONTROL_VAR_ANGLE;
+            control->target_angle       = control->control_internal->theta;
+            taskEXIT_CRITICAL();
+        }
+        break;
+    }
+
+    case MISSION_STATE_SUN_ACQUIRE:{
+
+        if(!light_detected(handle->light_readings, CORE_MIN_LIGHT_THRS)){
+            handle->mission_state = MISSION_STATE_SUN_LOST;
+            last_acquire_check_ms = 0U;
+            light_loss_ms = HAL_GetTick();
+            break;
+        }
+
+        float e_light = 
+              (handle->light_readings[LIGHT_SENSOR_IDX_RIGHT] - handle->light_readings[LIGHT_SENSOR_IDX_LEFT]) 
+            / (handle->light_readings[LIGHT_SENSOR_IDX_RIGHT] + handle->light_readings[LIGHT_SENSOR_IDX_LEFT] + CORE_SUNCHASER_EPSILON);
+        
+        float delta_theta = CORE_SUNCHASER_K * e_light;
+        float new_theta = control->target_angle + delta_theta;
+
+        taskENTER_CRITICAL();
+        control->control_variable   = CONTROL_VAR_ANGLE;
+        control->target_angle       = wrap_180(new_theta);
+        taskEXIT_CRITICAL();
+        
+        // to prevent reading a large delta t last_acquire_check_ms is set to 0 
+        // on a transition to other states and delta t is not calculated
+        if(last_acquire_check_ms == 0U){
+            last_acquire_check_ms = HAL_GetTick();
+            break;
+        }
+
+        bool acquired = is_light_acquired(  e_light, 
+                                            CORE_SUNCHASER_MIN_DELTA_E, 
+                                            HAL_GetTick() - last_acquire_check_ms,
+                                            CORE_SUNCHASER_MIN_STABLE_TIME_MS);
+        last_acquire_check_ms = HAL_GetTick();
+        
+        if(acquired){
+            Core_OnLightAcquired(handle);
+        }
+
+
+        if(handle->debug_id == DEBUG_PACKET_ID_LIGHT){
+            handle->current_debug_packet = (telemetry_packet_debug_t){
+                .type       = PACKET_TYPE_DEBUG,
+                .debug_id   = DEBUG_PACKET_ID_LIGHT,
+                .light_data = {
+                    .e_light        = e_light,
+                    .delta_theta    = delta_theta,
+                    .new_theta      = new_theta,
+                }
+            };
+            memcpy( handle->current_debug_packet.light_data.light_readings, 
+                    handle->light_readings, 
+                    FLOATSAT_LIGHT_SENSOR_AMOUNT * sizeof(float));
+        }
+        break;
+    }
+
+    case MISSION_STATE_SUN_LOST:{
+        uint32_t now = HAL_GetTick();
+        if(now < light_loss_ms){
+            LOGE(LOG_TAG,"Error: Last light loss was in the future. This is an invalid state!");
+            return ERR_INVALID_STATE;
+        }
+
+
+        // Hold position until timeout
+        control->target_angle = control->control_internal->theta;
+
+        uint32_t dt = now - light_loss_ms;
+        if(dt > CORE_SUNCHASER_LOSS_TIMEOUT_MS){
+            handle->mission_state = MISSION_STATE_SUN_SEARCH;
+        }
+        break;
+    }
+    
+    default:
+        break;
+    }
+
+    return ERR_OK;
+err:
+    return ret;
+
+}
+
+static bool is_light_acquired(float e_light, float min_delta, uint32_t dt_ms, uint32_t min_stable_time)
+{
+    static float e_light_prev = 0.0f;
+    static uint32_t stable_time_ms = 0U;
+
+    // Consider the light acquired when the error function reaches a local minimum
+    float delta_e = e_light - e_light_prev;
+
+    if(delta_e < min_delta){
+        stable_time_ms += dt_ms;
+    }else{
+        stable_time_ms = 0U;
+    }
+
+    if(stable_time_ms > min_stable_time){
+        return true;
+    }
+
+    return false;
+}
+
+static bool light_detected(float S[3], float threshold)
+{
+    return (S[0] + S[2] + S[2] >= threshold);
+}
+
+static floatsat_err_t Core_OnLightAcquired(floatsat_core_t *handle)
+{
+    if(!handle){
+        return ERR_INVALID_ARG;
+    }
+    // Turn on a LED and send an indicator to telemetry (could be on the slow telemetry packet)
+
+    return ERR_OK;
+}
+
+#pragma endregion
+
 #pragma region command_handling
 
 static floatsat_err_t Core_HandleCmd(floatsat_core_t *handle, floatsat_cmd_t *cmd)
@@ -568,3 +834,14 @@ err:
 
 
 #pragma endregion
+
+static void Core_BlinkLED(gpio_info_t *led, uint32_t blink_time_ms)
+{
+    static uint32_t last_blink_ms = 0U;
+    uint32_t now = HAL_GetTick();
+
+    if(now >= last_blink_ms + blink_time_ms){
+        HAL_GPIO_TogglePin(led->port, led->gpio_num);
+        last_blink_ms = now;
+    }
+}

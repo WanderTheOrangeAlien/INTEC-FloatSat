@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include "stm32f4xx_hal.h"
 
 #include "floatsat_defs.h"
 #include "fs_commands.h"
@@ -48,6 +49,9 @@ typedef uint64_t timestamp_t;
 #define CONTROL_STATE_RW_SAT            0x01 
 #define CONTROL_STATE_RW_SAT_RECOVERY   0x02
 
+#define CONTROL_VAR_ANGLE               0x00
+#define CONTROL_VAR_ANGULAR_VEL         0x01
+
 /// Configuration parameters for the control system. These are changed by the Core in response to commands.
 typedef struct control_cascade_params_t {
     float k_theta;
@@ -55,6 +59,7 @@ typedef struct control_cascade_params_t {
     float k_i;
 }control_cascade_params_t;
 
+// Control system information for creating plots
 typedef struct __attribute__((packed)) control_data_t {
     float       angle;
     float       angle_ref;
@@ -64,13 +69,28 @@ typedef struct __attribute__((packed)) control_data_t {
     float       rw_speed;
 }control_data_t;
 
+typedef struct __attribute__((packed)) light_control_data_t {
+    float light_readings[FLOATSAT_LIGHT_SENSOR_AMOUNT];
+    float e_light;
+    float delta_theta;
+    float new_theta;
+}light_control_data_t;
+
+typedef struct control_vars_t control_vars_t;
+
 typedef struct control_config_t {
     float                       target_angle;
+    float                       target_w;
     control_cascade_params_t    params;
-    uint8_t                     control_type;
-    bool                        control_active;
-    uint8_t                     debug_id;
+    
     uint8_t                     control_state; // The Core reads the state to determine if a recovery action is needed
+    uint8_t                     control_variable; // Whether to control angle or angular velocity
+    bool                        control_active;
+
+    uint8_t                     control_type;
+    const control_vars_t        *control_internal; // Internal control variables
+    
+    uint8_t                     debug_id;
 }control_config_t;
 
 
@@ -88,6 +108,18 @@ typedef struct floatsat_msg_header_t {
     uint16_t crc;
 }floatsat_msg_header_t;
 
+
+typedef struct gpio_info_t {
+    GPIO_TypeDef    *port;
+    uint16_t        gpio_num;
+}gpio_info_t;
+
+typedef struct status_leds_t{
+    gpio_info_t     led_red;
+    gpio_info_t     led_orange;
+    gpio_info_t     led_green;
+    gpio_info_t     led_blue;
+}status_leds_t;
 
 
 #endif
